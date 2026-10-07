@@ -615,7 +615,7 @@ function renderList() {
       <p class="card-organization">${escapeHtml(item.organization)}</p>
       <div class="card-meta"><span>Importe <strong>${escapeHtml(item.amount)}</strong></span><span>Cierre <strong>${escapeHtml(deadlineCompactLabel(item))}</strong></span></div>
     </article>
-  `).join("") : `<div class="empty-list"><strong>No hay casos con este filtro.</strong><span>Prueba otra vista o añade una oportunidad.</span></div>`;
+  `).join("") : opportunities.length ? `<div class="empty-list"><strong>No hay casos con este filtro.</strong><span>Prueba otra vista o añade una oportunidad.</span></div>` : `<div class="empty-list"><strong>Tu espacio está vacío.</strong><span>Empieza por <a href="#buscar">buscar una licitación real en PLACSP</a>, añade una con «+ Añadir oportunidad», trae tu copia de la beta desde <a href="#ajuste-datos">Ajustes</a> o añade <a href="#ajuste-riesgo">casos de práctica</a>.</span></div>`;
 
   listElement.querySelectorAll(".opportunity-card").forEach((card) => {
     card.addEventListener("click", () => selectOpportunity(card.dataset.id));

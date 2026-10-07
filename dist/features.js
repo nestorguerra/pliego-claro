@@ -121,6 +121,7 @@
   }
 
   function bindSearch(root) {
+    if (state.search.results === null && !state.search.loading) runSearch();
     root.querySelector("[data-tender-search]")?.addEventListener("submit", (event) => {
       event.preventDefault();
       state.search.filters = Object.fromEntries(new FormData(event.currentTarget));
@@ -261,8 +262,13 @@
     setBusy(`official-${refId}`, true); app().rerenderDetail();
     try {
       const result = await invoke("official-document", { expedienteId: metaFor(item).rowId, url: ref.url, name: ref.name, kind: ref.kind, versionLabel: ref.version });
-      toast(result.duplicate ? "Ese documento ya estaba archivado (misma huella)." : "Copia oficial archivada.");
+      toast(result.duplicate ? "Ese documento ya estaba archivado (misma huella)." : "Copia oficial archivada con su huella.");
       await loadDocs(item);
+      if (!ref.storedDocumentId) await app().commit(item.id, (draft) => {
+        const target = (draft.documents || []).find((entry) => entry.id === refId);
+        if (target) target.storedDocumentId = result.document.id;
+        app().history(draft, `Copia oficial archivada: ${ref.name}`, "El original queda disponible para citar por página.");
+      }, "Copia oficial archivada y vinculada a su referencia.");
       const doc = state.docs[metaFor(item).rowId]?.list.find((d) => d.id === result.document.id);
       if (doc && doc.mime_type === "application/pdf" && doc.extraction_status === "pending") await extract(item, doc);
     } catch (error) { toast(error.message); }
@@ -411,6 +417,11 @@
     return { id: `archivo-${doc.id}`, storedDocumentId: doc.id, name: doc.name, kind: doc.kind, url: doc.source_url || appLink, version: doc.version_label || `SHA-256 ${doc.sha256.slice(0, 12)}`, reviewedAt: "", registeredAt: new Date().toISOString() };
   }
   async function linkAsReference(item, doc) {
+    const existing = doc.source_url ? (item.documents || []).find((r) => r.url === doc.source_url && !r.storedDocumentId) : null;
+    if (existing) {
+      await app().commit(item.id, (draft) => { draft.documents.find((r) => r.id === existing.id).storedDocumentId = doc.id; app().history(draft, `Original vinculado: ${doc.name}`, "Se reutiliza la referencia oficial existente."); }, "Documento disponible como fuente de requisitos.");
+      return;
+    }
     const ref = referenceFor(doc);
     const supersededRef = doc.supersedes_id ? (item.documents || []).find((r) => r.storedDocumentId === doc.supersedes_id) : null;
     await app().commit(item.id, (draft) => {
