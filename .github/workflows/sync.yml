@@ -1,0 +1,39 @@
+name: Sincronizar PLACSP y avisos
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+    inputs:
+      backfill_pages:
+        description: "Páginas a leer la primera vez (≈400 licitaciones por página)"
+        default: "8"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-placsp
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "certifi==2025.8.3"
+      - name: Leer la fuente oficial, registrar cambios y enviar avisos
+        env:
+          SUPABASE_URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          BACKFILL_PAGES: ${{ inputs.backfill_pages || '8' }}
+        run: |
+          if [ -z "$SUPABASE_SECRET_KEY" ]; then echo "::warning::Sin SUPABASE_SECRET_KEY: no se sincroniza."; exit 0; fi
+          python sync/run_sync.py

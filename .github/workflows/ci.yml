@@ -1,0 +1,45 @@
+name: Pruebas
+
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.5.x
+      - name: Interfaz (lógica, copias, flujo, vistas)
+        run: node --test scripts/*.cjs
+      - name: Lector oficial PLACSP
+        run: python -m unittest discover -s sync -p "test_*.py" -v
+      - name: Funciones de servidor (reglas y tipado)
+        run: |
+          deno test --no-check supabase/functions/tests/
+          deno check supabase/functions/*/index.ts
+      - name: Base de datos (RLS, permisos, versiones, importación)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          pip install "psycopg[binary]==3.2.10"
+          python supabase/tests/test_database.py

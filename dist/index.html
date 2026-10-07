@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#142523" />
+    <meta name="description" content="Pliego Claro: una mesa de decisión para saber qué licitaciones merecen tu tiempo." />
+    <title>Pliego Claro · Espacio de licitación</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css?v=20261008" />
+    <script>window.PLIEGO_INITIAL_HASH = window.location.hash;</script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegación principal">
+        <div class="brand-block">
+          <a class="brand" href="#hoy" aria-label="Pliego Claro, inicio">
+            <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+            <span class="brand-name">Pliego Claro</span>
+          </a>
+          <span class="brand-subtitle">LICITACIÓN ÁGIL</span>
+        </div>
+
+        <nav class="nav-list">
+          <span class="nav-heading">Espacio de trabajo</span>
+          <a class="nav-item" data-route="hoy" href="#hoy"><span class="nav-icon">⌂</span>Inicio <span class="nav-count" data-route-count="hoy">3</span></a>
+          <a class="nav-item active" data-route="oportunidades" href="#oportunidades"><span class="nav-icon">◈</span>Oportunidades</a>
+          <a class="nav-item" data-route="expedientes" href="#expedientes"><span class="nav-icon">□</span>Expedientes</a>
+          <a class="nav-item" data-route="tareas" href="#tareas"><span class="nav-icon">✓</span>Tareas <span class="nav-count nav-count-muted" data-route-count="tareas">4</span></a>
+          <a class="nav-item" data-route="empresa" href="#empresa"><span class="nav-icon">○</span>Empresa y equipo</a>
+          <a class="nav-item" data-route="ajustes" href="#ajustes"><span class="nav-icon">⚙</span>Ajustes</a>
+        </nav>
+
+        <div class="workspace-utilities">
+          <a class="workspace-help" href="#asistencia">? Ayuda para participar</a>
+          <span class="release-stamp">Piloto con cuentas · 08 oct 2026</span>
+        </div>
+
+        <div class="sidebar-bottom">
+          <div class="company-summary">
+            <strong data-workspace-name>Mi empresa (ejemplo)</strong>
+            <span><i class="note-dot"></i> <span data-workspace-mode>Conectando…</span></span>
+            <span class="profile-progress" aria-label="Progreso del perfil"><i data-profile-progress></i></span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-content" id="top">
+        <header class="topbar">
+          <div class="breadcrumbs"><span>Pliego Claro</span><span>/</span><strong>Oportunidades</strong></div>
+          <div class="topbar-actions">
+            <label class="global-search" aria-label="Buscar en oportunidades">
+              <span aria-hidden="true">⌕</span>
+              <input id="globalSearch" type="search" placeholder="Buscar en este espacio…" />
+              <kbd>⌘K</kbd>
+            </label>
+            <span class="save-status" id="saveStatus" role="status" aria-live="polite">Conectando…</span>
+            <button class="button button-dark" id="openAdd" type="button"><span aria-hidden="true">+</span> Añadir oportunidad</button>
+            <a class="avatar" href="#ajuste-cuenta" aria-label="Tu cuenta">··</a>
+          </div>
+        </header>
+
+        <nav class="workspace-subnav" id="workspaceSubnav" aria-label="Vistas de este apartado"></nav>
+
+        <section class="intro-section dashboard-section" aria-labelledby="pageTitle">
+          <div>
+            <p class="eyebrow">Pliego Claro <span class="eyebrow-line"></span> Expedientes del espacio</p>
+            <h1 id="pageTitle">Tu bandeja de oportunidades.</h1>
+            <p class="intro-copy">Encuentra el caso que quieres estudiar. Dentro del expediente reunirás documentos, evidencia, decisión y preparación.</p>
+          </div>
+          <div class="intro-aside">
+            <span class="intro-aside-label">Esta beta prueba</span>
+            <strong>Descubrir no es participar.</strong>
+            <span>Busca licitaciones reales en <a href="#buscar">PLACSP</a> y conviértelas en expedientes vigilados.</span>
+          </div>
+        </section>
+
+        <section class="metrics dashboard-section" aria-label="Resumen de oportunidades">
+          <article class="metric-card metric-primary">
+            <span class="metric-label">Para revisar</span>
+            <strong id="metricReview">0</strong>
+            <span class="metric-foot">con información pendiente</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">En seguimiento</span>
+            <strong id="metricGo">0</strong>
+            <span class="metric-foot">con siguiente acción</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">No encajan</span>
+            <strong id="metricNoGo">0</strong>
+            <span class="metric-foot">decisiones aparcadas</span>
+          </article>
+          <article class="metric-card metric-date">
+            <span class="metric-label">Próximo cierre</span>
+            <strong id="metricNext">—</strong>
+            <span class="metric-foot">ordenado por urgencia</span>
+          </article>
+        </section>
+
+        <section class="workspace dashboard-section" id="oportunidades">
+          <div class="list-column">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow eyebrow-muted">Tu bandeja</p>
+                <h2>Oportunidades</h2>
+              </div>
+              <span class="count-label" id="opportunityCount">0 casos</span>
+            </div>
+            <div class="filters" role="toolbar" aria-label="Filtrar oportunidades">
+              <button class="filter active" data-filter="all" type="button">Todas</button>
+              <button class="filter" data-filter="review" type="button">Revisar</button>
+              <button class="filter" data-filter="go" type="button">En seguimiento</button>
+              <button class="filter" data-filter="soon" type="button">Más próximas</button>
+            </div>
+            <div class="opportunity-list" id="opportunityList" aria-live="polite"></div>
+          </div>
+
+          <article class="detail-panel" id="detailPanel" aria-live="polite">
+            <div class="detail-empty">
+              <span class="empty-mark">◈</span>
+              <h2>Elige una oportunidad</h2>
+              <p>Aquí veremos sus requisitos, evidencias y la decisión que toca tomar.</p>
+            </div>
+          </article>
+        </section>
+
+        <section class="route-view" id="routeView" hidden aria-live="polite"></section>
+
+        <footer class="app-footer">
+          <span><strong>Pliego Claro</strong> · piloto. <a href="#privacidad">Privacidad</a></span>
+          <span>No sustituye la revisión del expediente oficial ni el criterio profesional.</span>
+        </footer>
+      </main>
+    </div>
+
+    <div class="modal" id="addDialog" role="dialog" aria-modal="true" aria-labelledby="addTitle" hidden>
+      <form id="addForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow eyebrow-muted">Nuevo expediente</p>
+            <h2 id="addTitle">Añadir oportunidad</h2>
+          </div>
+          <button class="close-button" id="closeAdd" type="button" aria-label="Cerrar">×</button>
+        </div>
+        <p class="modal-copy">Si pegas el enlace de PLACSP y la licitación está en la muestra oficial, se usará la ficha oficial. Si no, se guarda con los datos que escribas, pendientes de contrastar. Para buscar, usa <a href="#buscar">Buscar en PLACSP</a>.</p>
+        <div class="form-grid">
+          <label class="field field-wide">Nombre de la oportunidad<input name="title" required placeholder="Ej. Servicio de mantenimiento…" /></label>
+          <label class="field">Organismo<input name="organization" required placeholder="Ayuntamiento, diputación…" /></label>
+          <label class="field">Importe<input name="amount" placeholder="Ej. 48.000 €" /></label>
+          <label class="field">Cierre o referencia<input name="deadline" placeholder="Ej. 12 días · Exp. 2026/14" /></label>
+          <label class="field">Fecha límite exacta<input name="deadlineDate" type="date" /></label>
+          <label class="field">Sector<input name="sector" placeholder="Ej. Servicios, obras…" /></label>
+          <label class="field field-wide">Enlace oficial<input name="source" type="url" placeholder="https://contrataciondelestado.es/..." /></label>
+        </div>
+        <div class="modal-actions">
+          <button class="button button-quiet" id="cancelAdd" type="button">Cancelar</button>
+          <button class="button button-dark" type="submit">Guardar oportunidad</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
+    <script src="config.js?v=20261008"></script>
+    <script src="backup.js?v=20261008"></script>
+    <script src="workflow.js?v=20261008"></script>
+    <script src="workflow-ui.js?v=20261008"></script>
+    <script src="workspace-ui.js?v=20261008"></script>
+    <script src="cloud.js?v=20261008"></script>
+    <script src="auth-ui.js?v=20261008"></script>
+    <script src="features.js?v=20261008"></script>
+    <script src="app.js?v=20261008"></script>
+  </body>
+</html>

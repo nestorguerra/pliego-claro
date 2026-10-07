@@ -1,0 +1,153 @@
+name: Desplegar Pliego Claro
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+  SITE_ORIGIN: https://${{ github.repository_owner }}.github.io
+
+jobs:
+  pruebas:
+    uses: ./.github/workflows/ci.yml
+
+  backend:
+    needs: pruebas
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - id: check
+        name: Comprobar secretos (sin mostrarlos)
+        run: |
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$PROJECT_REF" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Faltan secretos de Supabase: se publica solo la interfaz, sin servidor."
+          fi
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.configured == 'true'
+      - uses: supabase/setup-cli@v1
+        if: steps.check.outputs.configured == 'true'
+        with:
+          version: 2.119.0
+      - name: Migraciones de base de datos
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --include-all
+      - name: Secretos de las funciones
+        if: steps.check.outputs.configured == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+        run: |
+          umask 077
+          {
+            echo "SITE_URL=$SITE_URL"
+            echo "ALLOWED_ORIGINS=$SITE_ORIGIN,http://localhost:4173,http://127.0.0.1:4173"
+            [ -n "$ANTHROPIC_API_KEY" ] && echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"
+            [ -n "$RESEND_API_KEY" ] && echo "RESEND_API_KEY=$RESEND_API_KEY"
+            [ -n "$MAIL_FROM" ] && echo "MAIL_FROM=$MAIL_FROM"
+          } > "$RUNNER_TEMP/functions.env"
+          supabase secrets set --project-ref "$PROJECT_REF" --env-file "$RUNNER_TEMP/functions.env"
+          rm -f "$RUNNER_TEMP/functions.env"
+      - name: Funciones de servidor
+        if: steps.check.outputs.configured == 'true'
+        run: supabase functions deploy --project-ref "$PROJECT_REF" --use-api --no-verify-jwt
+      - name: Autenticación (URL, confirmación de correo, SMTP, contraseñas)
+        if: steps.check.outputs.configured == 'true'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, urllib.request
+          ref, token = os.environ["PROJECT_REF"], os.environ["SUPABASE_ACCESS_TOKEN"]
+          site = os.environ["SITE_URL"]
+          body = {
+              "site_url": site,
+              "uri_allow_list": f"{site},{site}**,http://localhost:4173/**,http://127.0.0.1:4173/**",
+              "disable_signup": False,
+              "external_email_enabled": True,
+              "mailer_autoconfirm": False,
+              "mailer_secure_email_change_enabled": True,
+              "mailer_otp_exp": 3600,
+              "password_min_length": 10,
+              "security_update_password_require_reauthentication": False,
+              "mailer_subjects_confirmation": "Confirma tu cuenta de Pliego Claro",
+              "mailer_subjects_recovery": "Restablece tu contraseña de Pliego Claro",
+              "mailer_subjects_email_change": "Confirma tu nuevo correo en Pliego Claro",
+              "mailer_templates_confirmation_content": "<h2>Confirma tu cuenta</h2><p>Para activar tu cuenta de Pliego Claro abre este enlace:</p><p><a href=\"{{ .ConfirmationURL }}\">Confirmar mi correo</a></p><p>Si no has creado una cuenta, ignora este mensaje.</p>",
+              "mailer_templates_recovery_content": "<h2>Restablecer contraseña</h2><p>Abre este enlace para elegir una contraseña nueva. Caduca en una hora y solo puede usarse una vez:</p><p><a href=\"{{ .ConfirmationURL }}\">Elegir contraseña nueva</a></p><p>Si no lo has pedido, ignora este mensaje: tu contraseña no cambia.</p>",
+          }
+          key, sender = os.environ.get("RESEND_API_KEY"), os.environ.get("MAIL_FROM")
+          if key and sender:
+              match = re.match(r"^\s*(.*?)\s*<([^>]+)>\s*$", sender)
+              name, address = (match.group(1), match.group(2)) if match else ("Pliego Claro", sender.strip())
+              body.update({"smtp_host": "smtp.resend.com", "smtp_port": "465", "smtp_user": "resend", "smtp_pass": key,
+                           "smtp_admin_email": address, "smtp_sender_name": name or "Pliego Claro", "smtp_max_frequency": 60, "rate_limit_email_sent": 30})
+          else:
+              print("::warning::Sin RESEND_API_KEY/MAIL_FROM: se usa el correo integrado de Supabase (solo miembros del equipo, pocas unidades por hora).")
+          request = urllib.request.Request(f"https://api.supabase.com/v1/projects/{ref}/config/auth", data=json.dumps(body).encode(), method="PATCH",
+                                           headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+          with urllib.request.urlopen(request) as response:
+              print("Configuración de autenticación aplicada:", response.status)
+          PY
+
+  web:
+    needs: backend
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generar config.js (URL y clave publicable, públicas por diseño)
+        if: needs.backend.outputs.configured == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          ref, token = os.environ["PROJECT_REF"], os.environ["SUPABASE_ACCESS_TOKEN"]
+          request = urllib.request.Request(f"https://api.supabase.com/v1/projects/{ref}/api-keys?reveal=true", headers={"Authorization": f"Bearer {token}"})
+          keys = json.load(urllib.request.urlopen(request))
+          publishable = next((k["api_key"] for k in keys if k.get("type") == "publishable" and k.get("api_key")), None) \
+              or next((k["api_key"] for k in keys if k.get("name") == "anon" and k.get("api_key")), None)
+          if not publishable:
+              raise SystemExit("No se encontró la clave publicable del proyecto.")
+          if publishable.startswith("sb_secret_") or "service_role" in publishable:
+              raise SystemExit("Se ha obtenido una clave secreta: no se publica.")
+          config = {"supabaseUrl": f"https://{ref}.supabase.co", "supabaseKey": publishable, "siteUrl": os.environ["SITE_URL"]}
+          with open("dist/config.js", "w") as handle:
+              handle.write("/* Generado en el despliegue. Clave publicable: segura en el navegador con RLS. */\n")
+              handle.write("window.PLIEGO_CONFIG = " + json.dumps(config) + ";\n")
+          print("config.js generado para", config["supabaseUrl"])
+          PY
+      - name: Versión visible
+        run: sed -i "s/Piloto con cuentas · 08 oct 2026/Piloto con cuentas · ${GITHUB_SHA::7}/" dist/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

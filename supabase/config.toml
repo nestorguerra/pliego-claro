@@ -1,0 +1,16 @@
+# Configuración mínima para la CLI de Supabase (migraciones y funciones).
+# La configuración de autenticación del proyecto alojado se aplica desde
+# .github/workflows/deploy.yml mediante la Management API.
+project_id = "pliego-claro"
+
+[functions.official-document]
+verify_jwt = false
+
+[functions.analyze-document]
+verify_jwt = false
+
+[functions.invite-email]
+verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = false
