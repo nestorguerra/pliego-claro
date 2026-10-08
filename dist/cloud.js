@@ -97,10 +97,18 @@
   async function resendConfirmation(email) {
     await run(requireClient().auth.resend({ type: "signup", email: email.trim().toLowerCase(), options: { emailRedirectTo: redirectUrl() } }), "No se pudo reenviar el correo.");
   }
-  async function updatePassword(password) {
+  async function updatePassword(password, nonce) {
     const issue = validatePassword(password);
     if (issue) throw new CloudError("validation", issue);
-    await run(requireClient().auth.updateUser({ password }), "No se pudo cambiar la contraseña.");
+    try {
+      await run(requireClient().auth.updateUser(nonce ? { password, nonce } : { password }), "No se pudo cambiar la contraseña.");
+    } catch (error) {
+      if (/reauthenticat|nonce/i.test(String(error.cause?.message || error.message))) throw new CloudError("reauth", nonce ? "El código no es válido o ha caducado." : "Hace falta confirmar tu identidad.", error);
+      throw error;
+    }
+  }
+  async function requestReauthentication() {
+    await run(requireClient().auth.reauthenticate(), "No se pudo enviar el código de verificación.");
   }
 
   // ---------------------------------------------------------------- espacios
@@ -242,18 +250,37 @@
   async function importBackup(payload, mode, applySettings) {
     return run(requireClient().rpc("import_workspace_backup", { p_workspace: state.workspaceId, p_payload: { ...payload, applySettings: Boolean(applySettings) }, p_mode: mode }), "No se pudo importar la copia. No se ha cambiado nada.");
   }
+  // Lectura paginada (PostgREST limita las filas por respuesta).
+  async function allRows(build, message) {
+    const rows = [];
+    for (let from = 0; ; from += 1000) {
+      const page = await run(build().range(from, from + 999), message);
+      rows.push(...(page || []));
+      if (!page || page.length < 1000) return rows;
+    }
+  }
   async function exportExtras() {
     const db = requireClient();
     const ws = state.workspaceId;
-    const [documents, comments, alerts, activity] = await Promise.all([
-      run(db.from("documents").select("id, expediente_id, name, kind, version_label, origin, source_url, sha256, size_bytes, mime_type, supersedes_id, extraction_status, page_count, created_at, deleted_at").eq("workspace_id", ws), "No se pudieron exportar los documentos."),
-      run(db.from("comments").select("expediente_id, author_id, body, created_at, deleted_at").eq("workspace_id", ws), "No se pudieron exportar los comentarios."),
-      run(db.from("alerts").select("expediente_id, kind, title, detail, changes, created_at, read_at").eq("workspace_id", ws), "No se pudieron exportar los avisos."),
-      run(db.from("activity_log").select("expediente_id, actor_id, action, detail, created_at").eq("workspace_id", ws).order("id", { ascending: false }).limit(5000), "No se pudo exportar la actividad.")
+    const [documents, pages, analyses, comments, alerts, activity] = await Promise.all([
+      allRows(() => db.from("documents").select("id, expediente_id, name, kind, version_label, origin, source_url, storage_path, sha256, size_bytes, mime_type, supersedes_id, extraction_status, page_count, created_at, deleted_at").eq("workspace_id", ws).order("created_at"), "No se pudieron exportar los documentos."),
+      allRows(() => db.from("document_pages").select("document_id, page_number, text, method").eq("workspace_id", ws).order("document_id").order("page_number"), "No se pudo exportar el texto extraído."),
+      allRows(() => db.from("ai_analyses").select("document_id, expediente_id, model, prompt_version, cost_usd, result, created_at").eq("workspace_id", ws).eq("status", "done").order("created_at"), "No se pudieron exportar los análisis."),
+      allRows(() => db.from("comments").select("expediente_id, author_id, body, created_at, deleted_at").eq("workspace_id", ws).order("created_at"), "No se pudieron exportar los comentarios."),
+      allRows(() => db.from("alerts").select("expediente_id, kind, title, detail, changes, created_at, read_at").eq("workspace_id", ws).order("created_at"), "No se pudieron exportar los avisos."),
+      allRows(() => db.from("activity_log").select("expediente_id, actor_id, action, detail, created_at").eq("workspace_id", ws).order("id", { ascending: false }).limit(5000), "No se pudo exportar la actividad.")
     ]);
     const idToClient = Object.fromEntries(Object.entries(state.meta).map(([clientId, meta]) => [meta.rowId, clientId]));
-    const mapExp = (rows) => (rows || []).map((row) => ({ ...row, expediente: idToClient[row.expediente_id] || row.expediente_id }));
-    return { workspace: { id: ws, name: state.workspaces.find((entry) => entry.id === ws)?.name || "" }, documents: mapExp(documents), comments: mapExp(comments), alerts: mapExp(alerts), activity: mapExp(activity), members: state.members.map(({ name, email, role }) => ({ name, email, role })) };
+    const names = Object.fromEntries(state.members.map((m) => [m.userId, m.name || m.email]));
+    const mapExp = (rows) => (rows || []).map(({ expediente_id, ...row }) => ({ ...row, expediente: idToClient[expediente_id] || null }));
+    return {
+      workspace: { id: ws, name: state.workspaces.find((entry) => entry.id === ws)?.name || "" },
+      documents: mapExp(documents), pages, analyses: mapExp(analyses),
+      comments: mapExp(comments).map(({ author_id, ...row }) => ({ ...row, author: names[author_id] || "Persona retirada" })),
+      alerts: mapExp(alerts),
+      activity: mapExp(activity).map(({ actor_id, ...row }) => ({ ...row, actor: actor_id ? names[actor_id] || "Persona retirada" : "Sistema" })),
+      members: state.members.map(({ name, email, role }) => ({ name, email, role }))
+    };
   }
 
   // ---------------------------------------------------------------- borradores locales
@@ -299,10 +326,10 @@
 
   globalThis.PliegoCloud = Object.freeze({
     configured, client, state, CloudError, classify, run, can,
-    currentSession, onAuthChange, signUp, signIn, signOut, requestPasswordReset, resendConfirmation, updatePassword, validatePassword, validateEmail,
+    currentSession, onAuthChange, signUp, signIn, signOut, requestPasswordReset, resendConfirmation, updatePassword, requestReauthentication, validatePassword, validateEmail,
     loadWorkspaces, chooseWorkspace, createWorkspace, renameWorkspace, loadWorkspaceData,
     createExpediente, saveExpediente, fetchExpediente, trashExpediente, listTrash, restoreFromTrash,
-    saveSettings, addNote, trashNote, addRole, trashRole, importBackup, exportExtras,
+    saveSettings, addNote, trashNote, addRole, trashRole, importBackup, exportExtras, allRows,
     drafts, clearDraft, subscribe, remoteVersionIsNewer, reportClientError, safeGet, safeSet
   });
 })();

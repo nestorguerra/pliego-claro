@@ -1,0 +1,4 @@
+Bibliotecas incluidas en la web (descargadas de cdnjs el 2026-10-08):
+acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e  jszip-3.10.1.min.js
+27fc2a057a00f92a4334ad06e17dbd7259912954e9fb7f76400bcca5fd190a9c  pdf-4.10.38.min.mjs
+1baa1844c89c80a5b2797c916e75ab29254be46d8e9cb53cb6364d7aad84be36  pdf.worker-4.10.38.min.mjs

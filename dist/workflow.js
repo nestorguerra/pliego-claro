@@ -22,32 +22,46 @@
     check(!input.reviewed || link, "Para registrar una revisión hace falta el enlace al documento.");
     return { id, name: text(input.name), kind: input.kind, url: link, version: text(input.version), reviewedAt: input.reviewed ? now : "", registeredAt: now };
   }
-  function hasEvidence(requirement, documents = []) {
-    const source = documents.find((entry) => entry.id === requirement.documentId);
-    return Boolean(source && source.url && source.reviewedAt && source.reviewedAt === requirement.documentReviewedAt && source.url === requirement.sourceUrl && (source.version || "") === requirement.sourceVersion && text(requirement.citation) && text(requirement.companyEvidence) && requirement.verifiedAt);
+  // Fecha de hoy en Madrid (AAAA-MM-DD): los plazos y vigencias se comparan en esa zona.
+  function today() {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   }
-  function confirmed(requirement, documents = []) {
-    return requirement.status === "confirmed" && hasEvidence(requirement, documents);
+  function expired(requirement, on = today()) {
+    return Boolean(text(requirement.evidenceValidUntil) && requirement.evidenceValidUntil < on);
+  }
+  function hasEvidence(requirement, documents = [], on = today()) {
+    const source = documents.find((entry) => entry.id === requirement.documentId);
+    return Boolean(source && source.url && source.reviewedAt && source.reviewedAt === requirement.documentReviewedAt && source.url === requirement.sourceUrl && (source.version || "") === requirement.sourceVersion && text(requirement.citation) && text(requirement.companyEvidence) && requirement.verifiedAt && !expired(requirement, on));
+  }
+  function confirmed(requirement, documents = [], on = today()) {
+    return requirement.status === "confirmed" && hasEvidence(requirement, documents, on);
   }
   function requirement(input, id, documents, now) {
     check(text(input.text), "Escribe el requisito que debe comprobarse.");
-    check(["confirmed", "pending", "unknown"].includes(input.status), "Estado de requisito no válido.");
+    check(["confirmed", "partial", "pending", "unknown"].includes(input.status), "Estado de requisito no válido.");
+    const validUntil = date(input.evidenceValidUntil);
     const source = documents.find((entry) => entry.id === text(input.documentId));
     check(!text(input.documentId) || source, "El documento asociado ya no existe.");
     const result = {
       id, text: text(input.text), status: input.status, critical: input.critical !== false,
       documentId: source?.id || "", citation: text(input.citation),
       source: source ? `${source.kind} · ${source.name}${text(input.citation) ? ` · ${text(input.citation)}` : ""}` : "Fuente pendiente de asociar",
-      companyEvidence: text(input.companyEvidence), evidenceUrl: url(input.evidenceUrl),
+      companyEvidence: text(input.companyEvidence), evidenceUrl: url(input.evidenceUrl), evidenceValidUntil: validUntil,
+      verifiedBy: input.status === "confirmed" ? text(input.verifiedBy) : "",
       documentReviewedAt: source?.reviewedAt || "", sourceUrl: source?.url || "", sourceVersion: source?.version || "",
       verifiedAt: input.status === "confirmed" ? now : ""
     };
-    check(input.status !== "confirmed" || hasEvidence(result, documents), "Para confirmar: documento revisado, página o cláusula y evidencia de la empresa. Si falta algo, guarda como pendiente.");
+    check(input.status !== "confirmed" || !expired(result), "La evidencia de la empresa está caducada: actualízala o guarda el requisito como parcial.");
+    check(input.status !== "confirmed" || hasEvidence(result, documents), "Para confirmar: documento revisado, página o cláusula y evidencia de la empresa. Si falta algo, guarda como pendiente o parcial.");
     return result;
   }
-  function canGo(item) {
+  function deadlinePassed(item, on = today()) {
+    return Boolean(item.deadlineDate && item.deadlineDate < on);
+  }
+  function canGo(item, on = today()) {
+    if (deadlinePassed(item, on)) return false;
     const critical = (item.requirements || []).filter((entry) => entry.critical !== false);
-    return critical.length > 0 && critical.every((entry) => confirmed(entry, item.documents));
+    return critical.length > 0 && critical.every((entry) => confirmed(entry, item.documents, on));
   }
   function reopenDecision(item) {
     if (item.decision === "GO" && !canGo(item)) {
@@ -73,5 +87,5 @@
     if ((item.deadlineDate !== deadlineDate || item.source !== result.source || item.organization !== result.organization) && item.decision === "GO") { result.decision = "REVISAR"; delete result.decisionConfirmedAt; }
     return result;
   }
-  globalThis.PliegoClaroWorkflow = Object.freeze({ url, date, document, requirement, confirmed, hasEvidence, canGo, reopenDecision, plan, editExpediente });
+  globalThis.PliegoClaroWorkflow = Object.freeze({ url, date, today, expired, deadlinePassed, document, requirement, confirmed, hasEvidence, canGo, reopenDecision, plan, editExpediente });
 })();

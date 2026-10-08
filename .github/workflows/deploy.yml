@@ -91,7 +91,7 @@ jobs:
               "mailer_secure_email_change_enabled": True,
               "mailer_otp_exp": 3600,
               "password_min_length": 10,
-              "security_update_password_require_reauthentication": False,
+              "security_update_password_require_reauthentication": True,
               "mailer_subjects_confirmation": "Confirma tu cuenta de Pliego Claro",
               "mailer_subjects_recovery": "Restablece tu contraseña de Pliego Claro",
               "mailer_subjects_email_change": "Confirma tu nuevo correo en Pliego Claro",

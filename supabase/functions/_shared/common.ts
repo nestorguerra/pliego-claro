@@ -18,9 +18,8 @@ export function json(req: Request, body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders(req), "Content-Type": "application/json; charset=utf-8" } });
 }
 
-export class HttpError extends Error {
-  constructor(public status: number, message: string) { super(message); }
-}
+import { HttpError } from "./errors.ts";
+export { HttpError };
 
 function firstKey(name: string, legacy: string): string {
   const raw = Deno.env.get(name);
