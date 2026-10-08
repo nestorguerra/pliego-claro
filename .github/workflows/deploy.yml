@@ -151,3 +151,17 @@ jobs:
           path: ./dist
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  estado:
+    name: Estado de la entrega (web publicada ≠ servicio listo)
+    needs: [backend, web]
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      REQUIRE_SAAS: ${{ vars.REQUIRE_SAAS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comprobar web, autenticación, correo, funciones, base de datos, IA y fuente oficial
+        run: python3 ops/health_check.py
