@@ -32,7 +32,6 @@ Modelo de datos (`supabase/migrations`): `workspaces`, `workspace_members` (titu
    | `SUPABASE_ACCESS_TOKEN` | Supabase → Account → Access Tokens |
    | `SUPABASE_PROJECT_REF` | Identificador del proyecto (en la URL del panel) |
    | `SUPABASE_DB_PASSWORD` | Contraseña de la base de datos |
-   | `SUPABASE_SECRET_KEY` | Project Settings → API Keys → Secret key (`sb_secret_…`) |
    | `ANTHROPIC_API_KEY` | Clave de Anthropic (opcional: sin ella la IA queda desactivada y todo lo demás funciona) |
    | `RESEND_API_KEY` | Clave de Resend (opcional: sin ella no hay correos de avisos y Auth usa el correo limitado de Supabase) |
    | `MAIL_FROM` | Remitente verificado, p. ej. `Pliego Claro <avisos@tudominio.es>` |
