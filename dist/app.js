@@ -1540,13 +1540,9 @@ async function boot(preferredWorkspace) {
 }
 
 function showDemoBanner() {
-  if (document.querySelector(".demo-banner")) return;
-  const banner = document.createElement("div");
-  banner.className = "demo-banner";
-  banner.setAttribute("role", "status");
-  banner.innerHTML = `<strong>Demostración</strong><span>Datos guardados solo en este navegador · licitaciones reales de PLACSP de una muestra fija · cuentas, originales, IA, avisos y equipo requieren el servidor.</span><button class="button button-light" type="button">Salir de la demostración</button>`;
-  banner.querySelector("button").addEventListener("click", () => { if (window.confirm("Saldrás de la demostración. Los datos de prueba se conservan en este navegador por si vuelves. ¿Salir?")) PliegoDemo.leave(); });
-  document.body.prepend(banner);
+  // Etiqueta discreta: el entorno funciona en este navegador, sin servidor conectado.
+  const stamp = document.querySelector(".release-stamp");
+  if (stamp) { stamp.textContent = "Entorno de demostración"; stamp.title = "Datos guardados en este navegador. Licitaciones reales de PLACSP (muestra del 8 oct 2026)."; }
 }
 
 async function onRemoteChange(table, payload) {

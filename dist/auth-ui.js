@@ -54,7 +54,6 @@
     document.body.classList.add("auth-open");
     element.innerHTML = `<div class="auth-card"><div class="auth-main">${brand}${view()}</div>${aside}</div>`;
     element.querySelectorAll("[data-auth-mode]").forEach((button) => button.addEventListener("click", () => { mode = button.dataset.authMode; notice = ""; render(); }));
-    element.querySelector("[data-demo-enter]")?.addEventListener("click", () => globalThis.PliegoDemo?.enter());
     element.querySelectorAll("[data-auth-privacy]").forEach((link) => link.addEventListener("click", (event) => { event.preventDefault(); globalThis.PliegoFeatures?.showPrivacy(); }));
     element.querySelectorAll("form[data-auth]").forEach((form) => form.addEventListener("submit", (event) => submit(event, form)));
     element.querySelector("input:not([type=hidden])")?.focus();
