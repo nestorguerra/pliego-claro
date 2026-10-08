@@ -780,3 +780,7 @@ a.settings-action { text-decoration: none; color: inherit; }
   .detail-actions small { margin-left: 0; }
 }
 .auth-aside .auth-small { color: #d5e3da; }
+.demo-banner { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 16px; background: var(--lime); color: #1d2400; font-size: 11px; }
+.demo-banner strong { text-transform: uppercase; letter-spacing: .08em; }
+.demo-banner span { flex: 1 1 280px; }
+.demo-banner .button { min-height: 30px; }

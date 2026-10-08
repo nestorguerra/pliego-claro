@@ -237,7 +237,7 @@ function setSaveStatus(kind, detail = "") {
   if (!status) return;
   window.clearTimeout(setSaveStatus.timer);
   status.dataset.state = kind;
-  status.textContent = kind === "saving" ? "Guardando…" : kind === "saved" ? `Guardado en el servidor · ${new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit" }).format(new Date())}` : kind === "error" ? "Error: no guardado" : kind === "offline" ? "Sin conexión" : "Conectado";
+  status.textContent = kind === "saving" ? "Guardando…" : kind === "saved" ? `${PliegoCloud.demo ? "Guardado en este navegador" : "Guardado en el servidor"} · ${new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit" }).format(new Date())}` : kind === "error" ? "Error: no guardado" : kind === "offline" ? "Sin conexión" : "Conectado";
   status.title = detail;
 }
 
@@ -1524,6 +1524,7 @@ async function boot(preferredWorkspace) {
       document.querySelector(".avatar").setAttribute("aria-label", `Sesión de ${me?.name || user.email}`);
       document.querySelector("[data-workspace-mode]").textContent = `${ws.name} · ${{ owner: "Titular", admin: "Administración", editor: "Edición", viewer: "Lectura" }[ws.role]}`;
       document.body.classList.toggle("read-only", !PliegoCloud.can("editor"));
+      if (PliegoCloud.demo) showDemoBanner();
       setSaveStatus("idle");
       PliegoAuthUI.hide();
       openDocumentFromHash();
@@ -1536,6 +1537,16 @@ async function boot(preferredWorkspace) {
     } finally { document.body.classList.remove("app-loading"); booting = null; }
   })();
   return booting;
+}
+
+function showDemoBanner() {
+  if (document.querySelector(".demo-banner")) return;
+  const banner = document.createElement("div");
+  banner.className = "demo-banner";
+  banner.setAttribute("role", "status");
+  banner.innerHTML = `<strong>Demostración</strong><span>Datos guardados solo en este navegador · licitaciones reales de PLACSP de una muestra fija · cuentas, originales, IA, avisos y equipo requieren el servidor.</span><button class="button button-light" type="button">Salir de la demostración</button>`;
+  banner.querySelector("button").addEventListener("click", () => { if (window.confirm("Saldrás de la demostración. Los datos de prueba se conservan en este navegador por si vuelves. ¿Salir?")) PliegoDemo.leave(); });
+  document.body.prepend(banner);
 }
 
 async function onRemoteChange(table, payload) {

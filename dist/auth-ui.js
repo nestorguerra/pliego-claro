@@ -26,7 +26,10 @@
   }
 
   function view() {
-    if (mode === "config") return `<h1 id="authTitle">Falta la conexión con el servidor</h1><p>Esta copia de la aplicación no tiene <code>config.js</code> con la dirección de Supabase. Sigue el README para desplegarla. Sin servidor no se crean cuentas ni se guarda trabajo.</p>`;
+    if (mode === "config") return `<h1 id="authTitle">Servicio en preparación</h1><p class="auth-lead">El servidor de cuentas todavía no está conectado: aún no se pueden crear cuentas ni guardar trabajo en la nube.</p>
+      <p class="auth-lead">Mientras tanto puedes <strong>probar la demostración</strong>: busca licitaciones reales publicadas hoy en PLACSP, crea expedientes y trabaja requisitos, decisión, tareas, costes y exportaciones. Los datos se guardan solo en este navegador.</p>
+      <button class="button button-dark auth-submit" data-demo-enter type="button">Probar la demostración</button>
+      <p class="auth-small">Cuentas, documentos originales, IA, avisos por correo y equipo se activarán al conectar el servidor.</p>`;
     if (mode === "signup") return `<h1 id="authTitle">Crear cuenta</h1><p class="auth-lead">Tu cuenta tendrá un espacio privado. Nadie más lo verá salvo que le invites.</p>
       <form data-auth="signup" novalidate>${field("Nombre y apellidos", "name", "text", 'autocomplete="name" required maxlength="120"')}${field("Empresa (opcional)", "company", "text", 'autocomplete="organization" maxlength="120"')}${field("Correo", "email", "email", `autocomplete="email" required value="${html(lastEmail)}"`)}${field("Contraseña (mín. 10, letras y números)", "password", "password", 'autocomplete="new-password" required minlength="10"')}
       <label class="editor-check"><input type="checkbox" name="privacy" required /><span>He leído la <a href="#privacidad" data-auth-privacy>información de privacidad</a> y qué proveedores tratan mis datos.</span></label>
@@ -51,6 +54,7 @@
     document.body.classList.add("auth-open");
     element.innerHTML = `<div class="auth-card"><div class="auth-main">${brand}${view()}</div>${aside}</div>`;
     element.querySelectorAll("[data-auth-mode]").forEach((button) => button.addEventListener("click", () => { mode = button.dataset.authMode; notice = ""; render(); }));
+    element.querySelector("[data-demo-enter]")?.addEventListener("click", () => globalThis.PliegoDemo?.enter());
     element.querySelectorAll("[data-auth-privacy]").forEach((link) => link.addEventListener("click", (event) => { event.preventDefault(); globalThis.PliegoFeatures?.showPrivacy(); }));
     element.querySelectorAll("form[data-auth]").forEach((form) => form.addEventListener("submit", (event) => submit(event, form)));
     element.querySelector("input:not([type=hidden])")?.focus();

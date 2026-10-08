@@ -92,7 +92,7 @@
     const stats = s.stats;
     const byTender = Object.fromEntries(Object.entries(cloud().state.meta).filter(([, m]) => m.tenderId).map(([clientId, m]) => [m.tenderId, clientId]));
     const last = stats?.lastRun;
-    const sourceLine = !stats ? "Pulsa Buscar para consultar la muestra oficial." : last?.status === "failed" ? `La última consulta a PLACSP falló ${ago(last.finished_at)}: ${html(last.error || "sin detalle")}. Se muestran los datos conocidos hasta ${fmtDateTime(stats.lastOk)}.` : `Última comprobación correcta de PLACSP: ${ago(stats.lastOk)} (${fmtDateTime(stats.lastOk)}). ${stats.total} licitaciones en la muestra, ${stats.vigentes} en plazo.`;
+    const sourceLine = !stats ? "Pulsa Buscar para consultar la muestra oficial." : stats.demo ? `Demostración: muestra fija de ${stats.total} licitaciones reales publicadas en PLACSP (${stats.vigentes} en plazo), descargada el ${fmtDateTime(stats.lastOk)}. No se actualiza: con el servidor conectado se sincroniza cada 30 minutos.` : last?.status === "failed" ? `La última consulta a PLACSP falló ${ago(last.finished_at)}: ${html(last.error || "sin detalle")}. Se muestran los datos conocidos hasta ${fmtDateTime(stats.lastOk)}.` : `Última comprobación correcta de PLACSP: ${ago(stats.lastOk)} (${fmtDateTime(stats.lastOk)}). ${stats.total} licitaciones en la muestra, ${stats.vigentes} en plazo.`;
     const cards = (s.results || []).map((t) => {
       const existing = byTender[t.id];
       const historic = isHistoric(t);
