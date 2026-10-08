@@ -22,7 +22,7 @@ Deno.serve(handle(async (req) => {
   const site = Deno.env.get("SITE_URL") || "";
   const roles: Record<string, string> = { viewer: "lectura", editor: "edición", admin: "administración" };
   const link = `${site}#invitacion=${token}`;
-  const id = await sendEmail(invitation.email, `Invitación a «${workspace?.name}» en Pliego Claro`,
+  const id = await sendEmail(invitation.email, `Invitación a «${workspace?.name}» en LicitIA`,
     `${inviter?.display_name || "Una persona"} te invita al espacio «${workspace?.name}» con permiso de ${roles[invitation.role] || invitation.role}.\n\n` +
     `Para aceptarla, entra o crea una cuenta con esta dirección (${invitation.email}) y abre:\n${link}\n\nCaduca el ${new Date(invitation.expires_at).toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" })}. Si no la esperabas, ignora este mensaje.`);
   return json(req, { sent: true, providerId: id });

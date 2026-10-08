@@ -18,7 +18,7 @@
     return root;
   }
 
-  const brand = `<div class="auth-brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span><strong>Pliego Claro</strong></div>`;
+  const brand = `<div class="auth-brand"><img class="brand-logo" src="brand-logo.svg" width="36" height="36" alt="" aria-hidden="true" /><strong class="brand-name">Licit<span>IA</span></strong></div>`;
   const aside = `<aside class="auth-aside"><p class="eyebrow">LICITACIONES PÚBLICAS</p><h2>Decide qué licitaciones merecen tu tiempo y prepara las que sí.</h2><ul><li>Licitaciones oficiales de la Plataforma de Contratación del Sector Público.</li><li>Pliegos archivados con su huella, citas a página y versiones.</li><li>Requisitos, evidencias de tu empresa y decisión GO / REVISAR / NO-GO razonada.</li><li>Avisos cuando cambia el expediente oficial.</li></ul><p class="auth-small">La decisión y la presentación siguen siendo humanas. <a href="#privacidad" data-auth-privacy>Privacidad y proveedores</a></p></aside>`;
 
   function field(label, name, type = "text", extra = "") {

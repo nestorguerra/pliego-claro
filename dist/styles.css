@@ -784,3 +784,10 @@ a.settings-action { text-decoration: none; color: inherit; }
 .demo-banner strong { text-transform: uppercase; letter-spacing: .08em; }
 .demo-banner span { flex: 1 1 280px; }
 .demo-banner .button { min-height: 30px; }
+
+/* Marca LicitIA */
+.brand-logo { width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0; box-shadow: 0 6px 16px rgba(134, 188, 37, .3); }
+.brand-name { font-family: "Sora", "Plus Jakarta Sans", sans-serif; font-weight: 700; font-size: 18px; letter-spacing: -.02em; color: var(--ink); }
+.brand-name span { color: #0f828f; }
+.auth-brand .brand-logo { width: 36px; height: 36px; border-radius: 11px; }
+.auth-brand .brand-name { font-size: 22px; }

@@ -46,7 +46,7 @@
     };
     zip.file("espacio.json", JSON.stringify(payload, null, 2));
     zip.file("manifiesto.json", JSON.stringify(manifest, null, 2));
-    zip.file("LEEME.txt", "Copia completa de un espacio de Pliego Claro.\nespacio.json: datos. manifiesto.json: huellas SHA-256 de los originales.\nRestaurar: Ajustes → Traer copia → elegir este .zip.\n");
+    zip.file("LEEME.txt", "Copia completa de un espacio de LicitIA.\nespacio.json: datos. manifiesto.json: huellas SHA-256 de los originales.\nRestaurar: Ajustes → Traer copia → elegir este .zip.\n");
     return { zip, manifest };
   }
 
@@ -74,7 +74,7 @@
     if (!manifestFile || !dataFile) throw new Error("Falta manifiesto.json o espacio.json. No se ha cambiado nada.");
     let manifest, payload;
     try { manifest = JSON.parse(await manifestFile.async("string")); payload = JSON.parse(await dataFile.async("string")); } catch (_) { throw new Error("La copia está dañada (JSON ilegible). No se ha cambiado nada."); }
-    if (manifest.format !== FORMAT || manifest.version !== 1) throw new Error("No es una copia completa de Pliego Claro compatible.");
+    if (manifest.format !== FORMAT || manifest.version !== 1) throw new Error("No es una copia completa de LicitIA compatible.");
     const buffers = {};
     for (const entry of manifest.files || []) {
       if (!entry.zipPath) continue;

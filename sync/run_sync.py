@@ -182,7 +182,7 @@ def notify(stats):
     for alert in alerts:
         title = (alert.get("expediente") or {}).get("title") or "Expediente"
         lines = [f"- {c.get('label')}: {c.get('before') or '—'} → {c.get('after') or '—'}" for c in alert.get("changes") or []]
-        body = f"{alert['title']}\nExpediente: {title}\n{alert['detail']}\n\n" + "\n".join(lines) + f"\n\nRevisa el cambio y la tarea creada: {site}#oportunidades\n\nPliego Claro no decide ni presenta ofertas: revisa siempre el expediente oficial."
+        body = f"{alert['title']}\nExpediente: {title}\n{alert['detail']}\n\n" + "\n".join(lines) + f"\n\nRevisa el cambio y la tarea creada: {site}#oportunidades\n\nLicitIA no decide ni presenta ofertas: revisa siempre el expediente oficial."
         for user_id, email, _ in people.get(alert["workspace_id"], []):
             outcome = queue_and_send(f"alert:{alert['id']}:{user_id}", alert["workspace_id"], user_id, alert["id"], email, f"Cambio oficial · {title[:80]}", body)
             sent += outcome == "enviado"

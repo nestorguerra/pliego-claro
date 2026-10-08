@@ -681,7 +681,7 @@ function renderDetail() {
   const completedChecklist = checklist.filter((entry) => entry.status === "completed").length;
   const offerView = `
     <div class="offer-view"><div class="view-heading"><div><p class="detail-section-title">Preparación de oferta</p><h3>Checklist antes de presentar</h3></div><span class="completion-label">${completedChecklist}/${checklist.length} listos</span></div>
-      <p class="view-intro">Pliego Claro puede ordenar el trabajo y preparar borradores. La revisión final, firma y presentación necesitan una persona responsable en el portal correspondiente.</p>
+      <p class="view-intro">LicitIA puede ordenar el trabajo y preparar borradores. La revisión final, firma y presentación necesitan una persona responsable en el portal correspondiente.</p>
       <div class="approval-banner"><strong>Acciones protegidas</strong><span>La app no firma, no envía y no presenta ofertas automáticamente.</span></div>
       <div class="offer-checklist">${checklist.map((entry) => `<div class="offer-check-row ${entry.status === "completed" ? "is-completed" : ""} ${entry.status === "blocked" ? "is-blocked" : ""}"><button class="requirement-check ${entry.status === "completed" ? "confirmed" : entry.status === "blocked" ? "unknown" : "pending"}" data-offer-toggle="${escapeAttribute(entry.id)}" type="button" aria-label="${entry.status === "completed" ? "Reabrir" : "Completar"} ${escapeHtml(entry.label)}">${entry.status === "completed" ? "✓" : entry.status === "blocked" ? "🔒" : "○"}</button><div><strong>${escapeHtml(entry.label)}</strong><small>${entry.approvalRequired ? "Requiere aprobación humana" : "Preparación"}</small></div><span class="task-state ${entry.status === "completed" ? "task-state-completed" : entry.status === "blocked" ? "task-state-blocked" : "task-state-pending"}">${entry.status === "completed" ? "Listo" : entry.status === "blocked" ? "Bloqueado" : "Pendiente"}</span></div>`).join("")}</div>
     </div>`;
@@ -1074,7 +1074,7 @@ function renderRoute() {
     privacidad: {
       eyebrow: "Ajustes · Privacidad",
       title: "Privacidad y proveedores",
-      intro: "Qué datos trata Pliego Claro, quién los recibe y cómo exportarlos o borrarlos.",
+      intro: "Qué datos trata LicitIA, quién los recibe y cómo exportarlos o borrarlos.",
       body: ""
     },
     pruebas: {

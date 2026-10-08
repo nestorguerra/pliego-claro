@@ -1,4 +1,4 @@
-name: Desplegar Pliego Claro
+name: Desplegar LicitIA
 
 on:
   push:
@@ -92,18 +92,18 @@ jobs:
               "mailer_otp_exp": 3600,
               "password_min_length": 10,
               "security_update_password_require_reauthentication": True,
-              "mailer_subjects_confirmation": "Confirma tu cuenta de Pliego Claro",
-              "mailer_subjects_recovery": "Restablece tu contraseña de Pliego Claro",
-              "mailer_subjects_email_change": "Confirma tu nuevo correo en Pliego Claro",
-              "mailer_templates_confirmation_content": "<h2>Confirma tu cuenta</h2><p>Para activar tu cuenta de Pliego Claro abre este enlace:</p><p><a href=\"{{ .ConfirmationURL }}\">Confirmar mi correo</a></p><p>Si no has creado una cuenta, ignora este mensaje.</p>",
+              "mailer_subjects_confirmation": "Confirma tu cuenta de LicitIA",
+              "mailer_subjects_recovery": "Restablece tu contraseña de LicitIA",
+              "mailer_subjects_email_change": "Confirma tu nuevo correo en LicitIA",
+              "mailer_templates_confirmation_content": "<h2>Confirma tu cuenta</h2><p>Para activar tu cuenta de LicitIA abre este enlace:</p><p><a href=\"{{ .ConfirmationURL }}\">Confirmar mi correo</a></p><p>Si no has creado una cuenta, ignora este mensaje.</p>",
               "mailer_templates_recovery_content": "<h2>Restablecer contraseña</h2><p>Abre este enlace para elegir una contraseña nueva. Caduca en una hora y solo puede usarse una vez:</p><p><a href=\"{{ .ConfirmationURL }}\">Elegir contraseña nueva</a></p><p>Si no lo has pedido, ignora este mensaje: tu contraseña no cambia.</p>",
           }
           key, sender = os.environ.get("RESEND_API_KEY"), os.environ.get("MAIL_FROM")
           if key and sender:
               match = re.match(r"^\s*(.*?)\s*<([^>]+)>\s*$", sender)
-              name, address = (match.group(1), match.group(2)) if match else ("Pliego Claro", sender.strip())
+              name, address = (match.group(1), match.group(2)) if match else ("LicitIA", sender.strip())
               body.update({"smtp_host": "smtp.resend.com", "smtp_port": "465", "smtp_user": "resend", "smtp_pass": key,
-                           "smtp_admin_email": address, "smtp_sender_name": name or "Pliego Claro", "smtp_max_frequency": 60, "rate_limit_email_sent": 30})
+                           "smtp_admin_email": address, "smtp_sender_name": name or "LicitIA", "smtp_max_frequency": 60, "rate_limit_email_sent": 30})
           else:
               print("::warning::Sin RESEND_API_KEY/MAIL_FROM: se usa el correo integrado de Supabase (solo miembros del equipo, pocas unidades por hora).")
           request = urllib.request.Request(f"https://api.supabase.com/v1/projects/{ref}/config/auth", data=json.dumps(body).encode(), method="PATCH",
