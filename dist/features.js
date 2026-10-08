@@ -9,8 +9,8 @@
   const STATUS = { PRE: "Anuncio previo", PUB: "En plazo", EV: "Pendiente de adjudicación", ADJ: "Adjudicada", RES: "Resuelta", ANUL: "Anulada" };
   const CONTRACT = { 1: "Suministros", 2: "Servicios", 3: "Obras", 21: "Gestión de servicios públicos", 22: "Concesión de servicios", 31: "Concesión de obras públicas", 32: "Concesión de obras", 7: "Administrativo especial", 8: "Privado", 50: "Patrimonial" };
   const PROCEDURE = { 1: "Abierto", 2: "Restringido", 3: "Negociado sin publicidad", 4: "Negociado con publicidad", 5: "Diálogo competitivo", 6: "Contrato menor", 7: "Derivado de acuerdo marco", 9: "Abierto simplificado", 13: "Licitación con negociación" };
-  const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
-  const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+  const PDFJS = new URL("vendor/pdf-4.10.38.min.mjs", document.baseURI).href;
+  const PDFJS_WORKER = new URL("vendor/pdf.worker-4.10.38.min.mjs", document.baseURI).href;
   const TESSERACT = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   const MAX_UPLOAD = 25 * 1024 * 1024;
   const UPLOAD_TYPES = { pdf: "application/pdf", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", odt: "application/vnd.oasis.opendocument.text", xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", zip: "application/zip", txt: "text/plain", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg" };
@@ -212,7 +212,7 @@
       return `<div class="original-row ${newer ? "is-superseded" : ""}"><span class="document-icon">${html(d.kind)}</span><div><strong>${html(d.name)}</strong>
         <span>${html(d.version_label || "Versión sin etiqueta")} · ${d.origin === "official" ? "Copia oficial descargada de PLACSP" : "Subido"} por ${html(memberName(d.uploaded_by))} · ${html(fmtDateTime(d.created_at))}</span>
         <span class="mono">SHA-256 ${html(d.sha256.slice(0, 16))}… · ${html(fmtBytes(d.size_bytes))}${d.page_count ? ` · ${d.page_count} páginas` : ""}</span>
-        <span class="doc-flags">${newer ? `<b class="flag flag-warn">Versión anterior · sustituida por «${html(newer.name)}»</b>` : ""}${previous ? `<b class="flag">Sustituye a «${html(previous.name)}»</b>` : ""}<b class="flag ${["needs_ocr", "failed", "partial"].includes(d.extraction_status) ? "flag-warn" : ""}">${html(busy || extraction[d.extraction_status] || d.extraction_status)}</b></span></div>
+        <span class="doc-flags">${newer ? `<b class="flag flag-warn">Versión anterior · sustituida por «${html(newer.name)}»</b>` : ""}${previous ? `<b class="flag">Sustituye a «${html(previous.name)}»</b>` : ""}<b class="flag ${["needs_ocr", "failed", "partial"].includes(d.extraction_status) ? "flag-warn" : ""}">${html(busy || extraction[d.extraction_status] || d.extraction_status)}</b>${busy && String(busy).startsWith("OCR") ? `<button class="text-button danger" data-ocr-cancel="${html(d.id)}" type="button">Cancelar OCR</button>` : ""}</span></div>
         <div class="original-actions"><button class="text-button" data-doc-open="${html(d.id)}" type="button">Abrir original</button>${d.page_count ? `<button class="text-button" data-doc-pages="${html(d.id)}" type="button">Ver texto por página</button>` : ""}${editable && d.mime_type === "application/pdf" && !busy ? `<button class="text-button" data-doc-extract="${html(d.id)}" type="button">${d.extraction_status === "pending" || d.extraction_status === "failed" ? "Extraer texto" : "Volver a extraer"}</button>${["needs_ocr", "partial"].includes(d.extraction_status) ? `<button class="text-button" data-doc-ocr="${html(d.id)}" type="button">Aplicar OCR</button>` : ""}` : ""}${editable && !(item.documents || []).some((r) => r.storedDocumentId === d.id) ? `<button class="text-button" data-doc-link="${html(d.id)}" type="button">Usar como fuente de requisitos</button>` : ""}${editable ? `<button class="text-button danger" data-doc-trash="${html(d.id)}" type="button">Papelera</button>` : ""}</div></div>`;
     }).join("");
     return `<section class="originals"><div class="view-heading"><div><p class="detail-section-title">Archivo documental</p><h3>Originales conservados</h3></div><span class="completion-label">${entry.list.length} archivados</span></div>
@@ -294,8 +294,16 @@
       const response = await fetch(url);
       if (!response.ok) throw new Error("No se pudo descargar el original para leerlo.");
       const bytes = new Uint8Array(await response.arrayBuffer());
-      const lib = await pdfjs();
-      const pdf = await lib.getDocument({ data: bytes, isEvalSupported: false }).promise;
+      let lib;
+      try { lib = await pdfjs(); } catch (_) {
+        // El lector externo no cargó: el original sigue archivado y la extracción queda pendiente, no fallida.
+        pdfjsPromise = null;
+        toast("No se pudo cargar el lector de PDF (cdnjs). El original está archivado; vuelve a pulsar «Extraer texto» más tarde.");
+        return;
+      }
+      let pdf;
+      try { pdf = await lib.getDocument({ data: bytes, isEvalSupported: false }).promise; }
+      catch (error) { throw new Error(/password/i.test(error?.name || error?.message || "") ? "el PDF está protegido con contraseña" : "el PDF está dañado o no es legible"); }
       const pages = [];
       for (let number = 1; number <= pdf.numPages; number += 1) {
         const page = await pdf.getPage(number);
@@ -326,12 +334,36 @@
     });
   }
 
+  // Planificación del OCR: páginas sin texto suficiente; sin extracción previa, todas.
+  const MIN_PAGE_CHARS = 40;
+  function ocrPlan(numPages, existing, limit = 40) {
+    const byPage = new Map((existing || []).map((p) => [p.page_number, p.text || ""]));
+    const weak = Array.from({ length: numPages }, (_, i) => i + 1).filter((n) => (byPage.get(n) || "").trim().length < MIN_PAGE_CHARS);
+    return { targets: weak.slice(0, limit), deferred: weak.slice(limit), weak };
+  }
+  // Resultado: solo «done» si no queda ninguna página sin texto suficiente ni sin procesar.
+  function ocrOutcome(plan, results, cancelled = false) {
+    const processed = new Map(results.map((r) => [r.page, r]));
+    const stillWeak = plan.targets.filter((n) => !processed.has(n) || processed.get(n).text.trim().length < MIN_PAGE_CHARS || processed.get(n).confidence < 50);
+    const pending = [...stillWeak, ...plan.deferred].sort((a, b) => a - b);
+    return { status: pending.length ? "partial" : "done", pending, cancelled, lowConfidence: results.filter((r) => r.confidence < 70).map((r) => r.page) };
+  }
+  function pageRanges(pages) {
+    const out = [];
+    pages.forEach((n) => { const last = out[out.length - 1]; if (last && n === last[1] + 1) last[1] = n; else out.push([n, n]); });
+    return out.map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(", ");
+  }
+  const ocrCancel = {};
+
   async function ocr(item, doc) {
     const limit = 40;
-    if (!window.confirm(`El OCR se ejecuta en este navegador (sin enviar el documento a terceros salvo la descarga del motor de reconocimiento desde jsDelivr). Puede tardar 10–20 s por página. Se procesarán ${Math.min(doc.page_count || limit, limit)} páginas como máximo. ¿Continuar?`)) return;
+    if (!window.confirm(`El OCR se ejecuta en este navegador: el documento no sale a terceros (solo se descarga el motor de reconocimiento desde jsDelivr). Tarda 10–20 s por página y procesa como máximo ${limit} páginas por vez; puedes cancelarlo. ¿Continuar?`)) return;
     const key = `doc-${doc.id}`;
+    ocrCancel[doc.id] = false;
     setBusy(key, "Preparando OCR…"); app().rerenderDetail();
     let worker;
+    let plan = null;
+    const results = [];
     try {
       await loadScript(TESSERACT);
       worker = await globalThis.Tesseract.createWorker("spa");
@@ -340,23 +372,32 @@
       const lib = await pdfjs();
       const pdf = await lib.getDocument({ data: bytes, isEvalSupported: false }).promise;
       const existing = await cloud().run(db().from("document_pages").select("page_number, text").eq("document_id", doc.id), "No se pudo leer el texto actual.");
-      const weak = new Set((existing || []).filter((p) => p.text.length < 40).map((p) => p.page_number));
-      const targets = Array.from({ length: pdf.numPages }, (_, i) => i + 1).filter((n) => weak.size === 0 || weak.has(n)).slice(0, limit);
-      for (const [index, number] of targets.entries()) {
-        setBusy(key, `OCR ${index + 1}/${targets.length}…`); app().rerenderDetail();
+      plan = ocrPlan(pdf.numPages, existing, limit);
+      for (const [index, number] of plan.targets.entries()) {
+        if (ocrCancel[doc.id]) break;
+        setBusy(key, `OCR página ${number} · ${index + 1}/${plan.targets.length}${plan.deferred.length ? ` (quedarán ${plan.deferred.length} para otra pasada)` : ""}`); app().rerenderDetail();
         const page = await pdf.getPage(number);
-        const viewport = page.getViewport({ scale: 2 });
+        const viewport = page.getViewport({ scale: window.innerWidth < 700 ? 1.5 : 2 });
         const canvas = document.createElement("canvas");
         canvas.width = viewport.width; canvas.height = viewport.height;
         await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
         const { data } = await worker.recognize(canvas);
-        await cloud().run(db().from("document_pages").upsert({ document_id: doc.id, workspace_id: cloud().state.workspaceId, page_number: number, text: data.text.trim(), method: "ocr" }, { onConflict: "document_id,page_number" }), "No se pudo guardar el OCR.");
+        canvas.width = 0; canvas.height = 0; // libera memoria (móvil)
+        const text = String(data.text || "").trim();
+        results.push({ page: number, text, confidence: Number(data.confidence || 0) });
+        // Solo se sustituye el texto previo si el OCR aporta más contenido.
+        const previous = (existing || []).find((p) => p.page_number === number)?.text || "";
+        if (text.length > previous.trim().length) await cloud().run(db().from("document_pages").upsert({ document_id: doc.id, workspace_id: cloud().state.workspaceId, page_number: number, text, method: "ocr" }, { onConflict: "document_id,page_number" }), "No se pudo guardar el OCR.");
       }
-      const remaining = pdf.numPages > limit && weak.size > limit;
-      await cloud().run(db().from("documents").update({ extraction_status: remaining ? "partial" : "done", page_count: pdf.numPages }).eq("id", doc.id), "No se pudo actualizar el documento.");
-      toast(remaining ? `OCR aplicado a ${limit} páginas; el resto sigue pendiente.` : "OCR aplicado. Revisa las tablas y cifras contra el original: el reconocimiento puede fallar.");
-    } catch (error) { toast(`OCR no completado: ${error.message}`); }
-    finally { await worker?.terminate?.(); setBusy(key, false); await loadDocs(item); }
+      const outcome = ocrOutcome(plan, results, ocrCancel[doc.id]);
+      await cloud().run(db().from("documents").update({ extraction_status: outcome.status, page_count: pdf.numPages }).eq("id", doc.id), "No se pudo actualizar el documento.");
+      toast(outcome.status === "done"
+        ? `OCR completado.${outcome.lowConfidence.length ? ` Confianza baja en páginas ${pageRanges(outcome.lowConfidence)}: revísalas.` : ""} Contrasta tablas y cifras con el original.`
+        : `${outcome.cancelled ? "OCR cancelado. " : ""}Quedan páginas sin texto suficiente: ${pageRanges(outcome.pending)}. El documento sigue como «texto parcial».`);
+    } catch (error) {
+      if (plan && results.length) await db().from("documents").update({ extraction_status: "partial" }).eq("id", doc.id);
+      toast(`OCR no completado: ${error.message}. Lo ya procesado se conserva; el documento sigue como parcial.`);
+    } finally { delete ocrCancel[doc.id]; await worker?.terminate?.(); setBusy(key, false); await loadDocs(item); }
   }
 
   async function showPages(doc, focusPage) {
@@ -404,6 +445,7 @@
     root.querySelectorAll("[data-doc-pages]").forEach((b) => b.addEventListener("click", () => showPages(find(b.dataset.docPages)).catch((e) => toast(e.message))));
     root.querySelectorAll("[data-doc-extract]").forEach((b) => b.addEventListener("click", () => extract(item, find(b.dataset.docExtract))));
     root.querySelectorAll("[data-doc-ocr]").forEach((b) => b.addEventListener("click", () => ocr(item, find(b.dataset.docOcr))));
+    root.querySelectorAll("[data-ocr-cancel]").forEach((b) => b.addEventListener("click", () => { ocrCancel[b.dataset.ocrCancel] = true; b.disabled = true; b.textContent = "Cancelando tras la página actual…"; }));
     root.querySelectorAll("[data-doc-link]").forEach((b) => b.addEventListener("click", () => linkAsReference(item, find(b.dataset.docLink))));
     root.querySelectorAll("[data-doc-trash]").forEach((b) => b.addEventListener("click", async () => {
       const doc = find(b.dataset.docTrash);
@@ -464,15 +506,27 @@
     const matchLabel = { consta: "Consta en tu perfil", parcial: "Consta en parte", no_consta: "No consta en tu perfil", sin_perfil: "Perfil vacío" };
     return `<section class="ai-panel"><div class="view-heading"><div><p class="detail-section-title">Lectura asistida · IA</p><h3>Proponer requisitos desde el pliego</h3></div><span class="example-label">Propuesta · revisión humana obligatoria</span></div>
       <p class="view-intro">Claude lee el texto extraído del documento que elijas y propone requisitos con página y cita literal. Pliego Claro comprueba que cada cita existe en esa página; lo que no se puede comprobar queda marcado sin soporte. Nada se confirma solo.</p>
-      ${!docs.length ? '<p class="route-note">Primero archiva un PDF en Documentos y extrae su texto. Sin texto no se envía nada.</p>' : editable ? `<form data-ai-form class="ai-form"><label class="field"><span>Documento a analizar</span><select name="documentId">${docs.map((d) => `<option value="${html(d.id)}" ${d.id === selected ? "selected" : ""}>${html(d.kind)} · ${html(d.name)} (${d.page_count || "?"} pág.)</option>`).join("")}</select></label>
+      ${state.service && !state.service.ai ? `<p class="route-note">La IA no está activada en este servidor${state.service.aiConfigured ? " (desactivada por administración)" : ""}. Toda la revisión manual sigue disponible.</p>` : !docs.length ? '<p class="route-note">Primero archiva un PDF en Documentos y extrae su texto. Sin texto no se envía nada.</p>' : editable ? `<form data-ai-form class="ai-form"><label class="field"><span>Documento a analizar</span><select name="documentId">${docs.map((d) => `<option value="${html(d.id)}" ${d.id === selected ? "selected" : ""}>${html(d.kind)} · ${html(d.name)} (${d.page_count || "?"} pág.)</option>`).join("")}</select></label>
         <p class="editor-help">Se enviará a Anthropic (proveedor de IA, EE. UU.) solo el texto extraído de ese documento y los seis bloques de tu perfil de empresa. No se envían otros documentos, notas ni datos personales del equipo. ${usage ? `Uso del mes: ${Number(usage.globalMonthUsd).toFixed(2)} de ${limits.ai_monthly_budget_usd} USD · hoy has usado ${usage.userToday} de ${limits.ai_user_daily_requests} análisis.` : ""}</p>
-        <div class="modal-actions"><button class="button button-dark" type="submit" ${state.busy.ai ? "disabled" : ""}>${state.busy.ai ? "Analizando… (hasta 2 min)" : "Analizar con IA"}</button></div><p class="editor-error" data-form-error role="alert"></p></form>` : ""}
+        <div class="modal-actions"><button class="button button-dark" type="submit" ${state.busy.ai || (usage && Number(usage.globalMonthUsd) >= Number(limits.ai_monthly_budget_usd)) ? "disabled" : ""}>${state.busy.ai ? html(state.busy.ai === true ? "Analizando…" : state.busy.ai) : "Analizar con IA"}</button></div><p class="editor-error" data-form-error role="alert"></p></form>` : ""}
       ${result ? `<div class="ai-result"><div class="ai-result-head"><strong>Resultado ${shown?.reused ? "reutilizado (mismo documento, sin coste nuevo)" : ""}</strong><small>${html(fmtDateTime(meta?.created_at))} · ${html(meta?.model || "")} · coste ${Number(meta?.cost_usd || 0).toFixed(3)} USD${result.coverage ? ` · páginas analizadas ${result.coverage.includedPages}/${result.coverage.totalPages}` : ""}</small></div>
         <div class="summary-grid">${Object.entries({ object: "Objeto", buyer: "Órgano", amount: "Importe", deadline: "Plazo", duration: "Duración", lots: "Lotes" }).map(([k, l]) => `<div class="summary-cell"><span>${l} · interpretación IA</span><strong>${html(result.summary?.[k] || "No encontrado en el texto")}</strong></div>`).join("")}</div>
         ${(result.warnings || []).length ? `<div class="approval-banner"><strong>Avisos</strong><span>${result.warnings.map(html).join("<br>")}</span></div>` : ""}
         <form data-ai-accept><div class="ai-reqs">${(result.requirements || []).map((r, i) => `<label class="ai-req ${r.verified ? "" : "is-unsupported"}"><input type="checkbox" name="req" value="${i}" ${r.verified ? "checked" : ""} ${editable ? "" : "disabled"} /><span><strong>${html(r.text)}</strong><small>${html(r.category.replaceAll("_", " "))} · ${r.critical ? "decisivo" : "no decisivo"} · pág. ${html(r.page)} · ${r.verified ? "✓ cita verificada en la página" : "⚠ cita no encontrada: sin soporte"}</small><q>${html(r.quote)}</q><small>Empresa: ${html(matchLabel[r.company_match] || r.company_match)} — ${html(r.company_reason)}</small></span></label>`).join("") || '<p class="route-note">No se propusieron requisitos.</p>'}</div>
         ${(result.not_found || []).length ? `<p class="editor-help"><b>No encontrado en el texto:</b> ${result.not_found.map(html).join(" · ")}</p>` : ""}
         ${editable && (result.requirements || []).length ? '<div class="modal-actions"><button class="button button-dark" type="submit">Añadir seleccionados como requisitos pendientes</button></div><p class="editor-help">Se añaden como «pendiente» con su página. Para confirmarlos sigue haciendo falta revisar el documento y registrar la evidencia de la empresa.</p>' : ""}</form></div>` : ""}</section>`;
+  }
+
+  // El análisis corre en el servidor; aquí solo se consulta su estado (recargar no lo repite).
+  async function waitForAnalysis(id, timeoutMs = 240000) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const row = await cloud().run(db().from("ai_analyses").select("id, status, result, error, created_at, model, cost_usd").eq("id", id).single(), "No se pudo consultar el análisis.");
+      if (row.status !== "running") return row;
+      setBusy("ai", `Analizando… ${Math.round((Date.now() - started) / 1000)} s`); app().rerenderDetail();
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+    }
+    return { id, status: "running", error: "El análisis sigue en curso. Vuelve a abrir esta pestaña en unos minutos: no se cobrará otra vez." };
   }
 
   function bindAi(root, item) {
@@ -483,12 +537,20 @@
       const documentId = form.elements.documentId.value;
       const doc = docsFor(item).list.find((d) => d.id === documentId);
       if (!window.confirm(`Se enviará el texto de «${doc?.name}» y tu perfil de empresa a Anthropic para proponer requisitos. ¿Continuar?`)) return;
-      setBusy("ai", true); app().rerenderDetail();
+      setBusy("ai", "Reservando…"); app().rerenderDetail();
       try {
-        const data = await invoke("analyze-document", { documentId });
-        state.aiResult[item.id] = { documentId, analysis: data.analysis, reused: data.reused };
+        // Un identificador por clic: un doble envío o un reintento no lanza ni cobra dos análisis.
+        const data = await invoke("analyze-document", { documentId, requestId: crypto.randomUUID() });
+        if (data.reused) {
+          state.aiResult[item.id] = { documentId, analysis: data.analysis, reused: true };
+          toast("Análisis reutilizado: mismo documento, texto y perfil. Sin coste nuevo.");
+        } else {
+          const analysis = await waitForAnalysis(data.analysisId);
+          state.aiResult[item.id] = { documentId, analysis, reused: false };
+          if (analysis.status === "done") toast("Análisis completado. Revisa cada propuesta.");
+          else toast(analysis.error || "El análisis no se completó. Sigue con la revisión manual.");
+        }
         delete state.analyses[documentId];
-        toast(data.reused ? "Análisis reutilizado: mismo documento y versión." : "Análisis completado. Revisa cada propuesta.");
       } catch (error) {
         state.aiResult[item.id] = { documentId };
         toast(error.message);
@@ -669,7 +731,20 @@
     });
     root.querySelector("[data-password-form]")?.addEventListener("submit", async (event) => {
       event.preventDefault();
-      try { await cloud().updatePassword(String(new FormData(event.currentTarget).get("password"))); event.currentTarget.reset(); toast("Contraseña cambiada."); } catch (error) { toast(error.message); }
+      const form = event.currentTarget;
+      const password = String(new FormData(form).get("password"));
+      try { await cloud().updatePassword(password); form.reset(); toast("Contraseña cambiada."); }
+      catch (error) {
+        if (error.kind !== "reauth") { toast(error.message); return; }
+        // Cambio seguro: el servidor exige un código enviado al correo de la cuenta.
+        try {
+          await cloud().requestReauthentication();
+          const nonce = window.prompt("Por seguridad te hemos enviado un código a tu correo. Escríbelo aquí para cambiar la contraseña:");
+          if (!nonce) { toast("No se ha cambiado la contraseña."); return; }
+          await cloud().updatePassword(password, nonce.trim());
+          form.reset(); toast("Contraseña cambiada.");
+        } catch (inner) { toast(inner.message); }
+      }
     });
     root.querySelector("[data-workspace-switch]")?.addEventListener("change", async (event) => { cloud().safeSet(`pliego-claro-espacio:${cloud().state.user.id}`, event.target.value); await app().boot(event.target.value); });
     root.querySelector("[data-workspace-new]")?.addEventListener("click", async () => {
@@ -685,9 +760,14 @@
       try { await cloud().restoreFromTrash(kind, id, Number(version || 0)); state.trash = await cloud().listTrash(); await app().reloadWorkspace(); toast("Restaurado."); app().rerender(); } catch (error) { toast(error.message); }
     }));
     root.querySelector("[data-delete-account]")?.addEventListener("click", async () => {
-      const typed = window.prompt("Esto borra tu cuenta y los espacios donde eres la única persona, con sus documentos. Exporta antes una copia.\nEscribe BORRAR MI CUENTA para confirmar:");
+      let plan;
+      try { plan = await invoke("delete-account", { dryRun: true }); } catch (error) { toast(error.message); return; }
+      if (window.confirm(`Se borrarán tu cuenta y ${plan.workspacesToDelete} espacio(s) donde eres la única persona, con todos sus expedientes y originales. ${plan.workspacesKept} espacio(s) compartidos se conservan para los demás.\n\n¿Quieres descargar antes la copia completa de este espacio (con originales)?`)) {
+        await app().exportFull();
+      }
+      const typed = window.prompt("Escribe BORRAR MI CUENTA para confirmar. No se puede deshacer:");
       if (typed !== "BORRAR MI CUENTA") { toast("No se ha borrado nada."); return; }
-      try { await invoke("delete-account", { confirm: typed }); toast("Cuenta eliminada."); await app().signOut(); } catch (error) { toast(error.message); }
+      try { const result = await invoke("delete-account", { confirm: typed }); toast(`Cuenta eliminada (${result.workspacesRemoved} espacios).`); await app().signOut(); } catch (error) { toast(error.message); }
     });
   }
   async function loadProfilePrefs() {
@@ -743,9 +823,16 @@
     win.document.write(page); win.document.close();
   }
 
+  // Una celda que empieza por = + - @ o tabulador se neutraliza para que la hoja de cálculo no la ejecute como fórmula.
+  function csvCell(value) {
+    let text = String(value ?? "");
+    if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  function csvText(rows) { return "\ufeff" + rows.map((row) => row.map(csvCell).join(";")).join("\r\n"); }
   function csvMatrix(item) {
     const rows = [["Requisito", "Decisivo", "Documento", "Cita", "Evidencia empresa", "Estado"], ...(item.requirements || []).map((r) => { const d = (item.documents || []).find((x) => x.id === r.documentId); return [r.text, r.critical === false ? "No" : "Sí", d ? `${d.kind} ${d.name}` : "", r.citation || "", r.companyEvidence || "", globalThis.PliegoClaroWorkflow.confirmed(r, item.documents) ? "Confirmado" : r.status]; })];
-    download(`matriz-${item.id}.csv`, "\ufeff" + rows.map((row) => row.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";")).join("\r\n"), "text/csv");
+    download(`matriz-${item.id}.csv`, csvText(rows), "text/csv");
   }
 
   function privacyMarkup() {
@@ -758,16 +845,20 @@
   }
   function showPrivacy() { modal(`<div class="modal-head"><div><h2>Privacidad y proveedores</h2></div><button class="close-button" data-close type="button" aria-label="Cerrar">×</button></div>${privacyMarkup()}`); }
 
+  async function loadServiceStatus() {
+    try { state.service = await invoke("service-status", {}); } catch (_) { state.service = { ai: false, email: false, unavailable: true }; }
+  }
+
   // Cargas al entrar en un espacio
   async function onWorkspaceLoaded() {
     state.docs = {}; state.analyses = {}; state.social = {}; state.aiResult = {}; state.trash = null; state.lastInviteLink = "";
-    await Promise.all([loadAlerts(), loadUsage(), loadInvitations(), loadProfilePrefs(), cloud().run(db().rpc("tender_stats"), "").then((s) => { state.search.stats = s; }).catch(() => {})]);
+    await Promise.all([loadAlerts(), loadUsage(), loadInvitations(), loadProfilePrefs(), loadServiceStatus(), cloud().run(db().rpc("tender_stats"), "").then((s) => { state.search.stats = s; }).catch(() => {})]);
   }
 
   globalThis.PliegoFeatures = Object.freeze({
     state, searchMarkup, bindSearch, expedienteFromTender, findOfficial, isHistoric,
     originalsMarkup, bindOriginals, aiMarkup, bindAi, followMarkup, bindFollow, alertsMarkup, loadAlerts,
     membersMarkup, bindMembers, acceptInvitationFromUrl, accountMarkup, bindAccount,
-    exportReport, csvMatrix, buildIcs, privacyMarkup, showPrivacy, showPages, onWorkspaceLoaded, loadDocs, fitReasons, amountLabel
+    exportReport, csvMatrix, csvText, ocrPlan, ocrOutcome, pageRanges, buildIcs, privacyMarkup, showPrivacy, showPages, onWorkspaceLoaded, loadDocs, fitReasons, amountLabel
   });
 })();

@@ -92,6 +92,43 @@ export function costUsd(inputTokens: number, outputTokens: number): number {
   return Math.round(((inputTokens * PRICE_PER_MTOK.input + outputTokens * PRICE_PER_MTOK.output) / 1_000_000) * 10000) / 10000;
 }
 
+// Tarifas públicas por modelo (USD por millón de tokens, oct 2026). Un fallback del servidor puede
+// servir otro modelo: se cobra con su tarifa; un modelo desconocido se valora con la más cara.
+export const MODEL_PRICES: Record<string, { input: number; output: number }> = {
+  "claude-opus-5-5": { input: 4, output: 20 },
+  "claude-opus-5": { input: 5, output: 25 },
+  "claude-opus-4-8": { input: 5, output: 25 },
+  "claude-sonnet-5-5": { input: 2, output: 10 },
+  "claude-fable-5-1": { input: 10, output: 50 },
+};
+const MOST_EXPENSIVE = { input: 10, output: 50 };
+type Usage = { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number; iterations?: Array<Record<string, unknown>> };
+
+/** Coste real a partir de `usage`, incluidas las iteraciones de fallback y la caché. */
+export function actualCost(usage: Usage, servedModel: string): number {
+  const price = (model: unknown) => MODEL_PRICES[String(model || "")] || MOST_EXPENSIVE;
+  const one = (u: Usage, model: unknown) => {
+    const p = price(model);
+    const input = Number(u.input_tokens || 0) + Number(u.cache_creation_input_tokens || 0) * 1.25 + Number(u.cache_read_input_tokens || 0) * 0.1;
+    return (input * p.input + Number(u.output_tokens || 0) * p.output) / 1_000_000;
+  };
+  const iterations = Array.isArray(usage?.iterations) ? usage.iterations : [];
+  const total = iterations.length ? iterations.reduce((sum, it) => sum + one(it as Usage, it.model ?? servedModel), 0) : one(usage || {}, servedModel);
+  return Math.round(total * 10000) / 10000;
+}
+
+export async function sha256Text(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** H05: la caché depende del original, del texto extraído (OCR incluido), del perfil, del prompt y del modelo. */
+export async function cacheKeyFor(documentSha: string, pages: { page_number: number; text: string }[], profile: Record<string, string>) {
+  const textHash = await sha256Text(JSON.stringify([...pages].sort((a, b) => a.page_number - b.page_number).map((p) => [p.page_number, p.text])));
+  const profileHash = await sha256Text(JSON.stringify(Object.entries(profile).sort(([a], [b]) => a.localeCompare(b))));
+  return { cacheKey: `${documentSha}:${textHash.slice(0, 16)}:${profileHash.slice(0, 16)}:${PROMPT_VERSION}:${MODEL}`, textHash, profileHash };
+}
+
 export function estimateCost(chars: number, maxOutputTokens: number): number {
   return costUsd(Math.ceil(chars / 3) + 3000, maxOutputTokens);
 }

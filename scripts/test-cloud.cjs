@@ -14,7 +14,7 @@ function load(extra = {}) {
     location: { origin: 'https://example.test', pathname: '/pliego-claro/', hash: '' },
     history: { replaceState() {} },
     localStorage: { get length() { return storage.size; }, key: (i) => [...storage.keys()][i], getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) },
-    document: { scripts: [], createElement: () => ({}), body: { appendChild() {}, classList: { add() {}, remove() {} } } },
+    document: { baseURI: 'https://example.test/pliego-claro/', scripts: [], createElement: () => ({}), body: { appendChild() {}, classList: { add() {}, remove() {} } } },
     window: {}, PLIEGO_CONFIG: {}, ...extra
   });
   scope.globalThis = scope;
@@ -133,4 +133,37 @@ test('la información de privacidad nombra a todos los proveedores', () => {
   const text = features.privacyMarkup();
   for (const provider of ['Supabase', 'GitHub Pages', 'Anthropic', 'Resend']) assert.match(text, new RegExp(provider));
   assert.match(text, /No se afirma cumplimiento legal/);
+});
+
+const plain = (value) => JSON.parse(JSON.stringify(value));
+// H04 · OCR: nunca «done» si quedan páginas sin procesar o sin texto suficiente.
+test('OCR sin extracción previa en un PDF de 55 páginas no queda como leído tras 40', () => {
+  const plan = features.ocrPlan(55, [], 40);
+  assert.equal(plan.targets.length, 40); assert.equal(plan.deferred.length, 15);
+  const results = plan.targets.map((page) => ({ page, text: 'Cláusula '.repeat(10), confidence: 90 }));
+  const outcome = features.ocrOutcome(plan, results);
+  assert.equal(outcome.status, 'partial');
+  assert.deepEqual(plain(outcome.pending), Array.from({ length: 15 }, (_, i) => 41 + i));
+  assert.equal(features.pageRanges(outcome.pending), '41–55');
+});
+test('OCR de un PDF mixto solo procesa las páginas débiles y termina en done si todas quedan legibles', () => {
+  const existing = [{ page_number: 1, text: 'texto suficiente '.repeat(5) }, { page_number: 2, text: '' }, { page_number: 3, text: 'x' }];
+  const plan = features.ocrPlan(3, existing, 40);
+  assert.deepEqual(plain(plan.targets), [2, 3]);
+  const done = features.ocrOutcome(plan, [{ page: 2, text: 'a'.repeat(60), confidence: 88 }, { page: 3, text: 'b'.repeat(60), confidence: 65 }]);
+  assert.equal(done.status, 'done'); assert.deepEqual(plain(done.lowConfidence), [3]);
+});
+test('OCR con texto pobre, baja confianza o cancelado no se da por leído', () => {
+  const plan = features.ocrPlan(3, [], 40);
+  assert.equal(features.ocrOutcome(plan, [{ page: 1, text: 'a'.repeat(60), confidence: 90 }, { page: 2, text: 'ilegible', confidence: 90 }, { page: 3, text: 'c'.repeat(60), confidence: 30 }]).status, 'partial');
+  const cancelled = features.ocrOutcome(plan, [{ page: 1, text: 'a'.repeat(60), confidence: 90 }], true);
+  assert.equal(cancelled.status, 'partial'); assert.equal(cancelled.cancelled, true); assert.deepEqual(plain(cancelled.pending), [2, 3]);
+});
+// H10 · CSV: las celdas no se ejecutan como fórmulas al abrir la hoja de cálculo.
+test('la matriz CSV neutraliza fórmulas y escapa comillas', () => {
+  const csv = features.csvText([['Requisito', 'Evidencia'], ['=HYPERLINK("http://x","clic")', '+1+1'], ['-2', '@SUM(A1)'], ['\tTab', 'Texto "con" comillas']]);
+  assert.ok(csv.startsWith('﻿'));
+  assert.match(csv, /"'=HYPERLINK\(""http:\/\/x"",""clic""\)"/);
+  assert.match(csv, /"'\+1\+1"/); assert.match(csv, /"'-2"/); assert.match(csv, /"'@SUM\(A1\)"/); assert.match(csv, /"'\tTab"/);
+  assert.match(csv, /"Texto ""con"" comillas"/);
 });

@@ -11,7 +11,7 @@ const now = '2026-10-06T19:00:00.000Z';
 const doc = W.document({ name: 'PCAP original', kind: 'PCAP', url: 'https://example.org/pcap.pdf', version: '1', reviewed: true }, 'doc-1', now);
 const input = { text: 'Experiencia acreditada', documentId: doc.id, citation: 'Página 12, cláusula 4', companyEvidence: 'Certificado de buena ejecución: proyecto de prueba', status: 'confirmed', critical: true };
 const req = () => W.requirement(input, 'req-1', [doc], now);
-const item = () => ({ id: 'case', title: 'Caso manual', organization: 'Organismo de prueba', decision: 'GO', requirements: [req()], documents: [structuredClone(doc)], taskPlans: { 'requirement-case-req-1': { ownerId: 'owner', dueDate: '2026-10-08', note: 'Verificar' } }, history: [], why: [], deadlineDate: '2026-10-12', decisionConfirmedAt: now });
+const item = () => ({ id: 'case', title: 'Caso manual', organization: 'Organismo de prueba', decision: 'GO', requirements: [req()], documents: [structuredClone(doc)], taskPlans: { 'requirement-case-req-1': { ownerId: 'owner', dueDate: '2026-10-08', note: 'Verificar' } }, history: [], why: [], deadlineDate: '2099-10-12', decisionConfirmedAt: now });
 test('registrar un documento guarda la revisión manual y no descarga nada', () => {
   assert.equal(doc.reviewedAt, now); assert.equal(doc.url, 'https://example.org/pcap.pdf');
   assert.equal(W.document({ ...doc, reviewed: false }, doc.id, now).reviewedAt, '');
@@ -154,4 +154,40 @@ for (const invalid of ['duplicate', 'date', 'url']) test(`rechaza evidencia impo
   if (invalid === 'date') payload.opportunities[0].requirements[0].verifiedAt = 'inventado';
   if (invalid === 'url') payload.opportunities[0].requirements[0].evidenceUrl = 'javascript:alert(1)';
   assert.throws(() => scope.PliegoClaroBackup.validate(payload, {}, defaults));
+});
+
+// Reglas añadidas en la revisión del 8 de octubre: plazo vencido, vigencia de evidencia y estado parcial.
+test('GO se bloquea cuando el plazo de presentación ya ha pasado', () => {
+  const current = item();
+  assert.equal(W.canGo(current, '2099-10-01'), true);
+  assert.equal(W.canGo(current, '2099-10-13'), false);
+  assert.equal(W.deadlinePassed(current, '2099-10-12'), false, 'el mismo día todavía está en plazo');
+});
+test('una evidencia caducada no cuenta como vigente y conserva su texto', () => {
+  const current = item(); current.requirements[0].evidenceValidUntil = '2099-01-31';
+  assert.equal(W.confirmed(current.requirements[0], current.documents, '2099-01-31'), true);
+  assert.equal(W.confirmed(current.requirements[0], current.documents, '2099-02-01'), false);
+  assert.equal(W.canGo(current, '2099-02-01'), false);
+  assert.ok(current.requirements[0].companyEvidence, 'no se borra la evidencia anterior');
+});
+test('no se puede confirmar con una evidencia ya caducada; sí guardar como parcial', () => {
+  const docs = [structuredClone(doc)];
+  const base = { text: 'Certificado ISO', documentId: doc.id, citation: 'pág. 4', companyEvidence: 'Certificado 2023', evidenceValidUntil: '2020-01-01', critical: true };
+  assert.throws(() => W.requirement({ ...base, status: 'confirmed' }, 'r', docs, now), /caducada/);
+  const partial = W.requirement({ ...base, status: 'partial' }, 'r', docs, now);
+  assert.equal(partial.status, 'partial'); assert.equal(partial.verifiedAt, ''); assert.equal(partial.verifiedBy, '');
+  assert.throws(() => W.requirement({ ...base, evidenceValidUntil: '2026-02-30', status: 'pending' }, 'r', docs, now), /fecha/i);
+});
+test('la confirmación registra quién revisó', () => {
+  const docs = [structuredClone(doc)];
+  const result = W.requirement({ text: 'Solvencia', documentId: doc.id, citation: 'cláusula 7', companyEvidence: 'Cuentas 2025', status: 'confirmed', verifiedBy: 'Ana Revisora' }, 'r', docs, now);
+  assert.equal(result.verifiedBy, 'Ana Revisora'); assert.equal(result.verifiedAt, now);
+});
+test('las copias aceptan el estado parcial y rechazan vigencias mal formadas', () => {
+  const defaults = { defaultDecision: 'REVISAR', density: 'compact' };
+  const ok = { format: 'pliego-claro-mvp', version: 2, settings: defaults, opportunities: [item()], notes: [], team: [] };
+  ok.opportunities[0].requirements[0].status = 'partial';
+  assert.doesNotThrow(() => scope.PliegoClaroBackup.validate(ok, {}, defaults));
+  const bad = structuredClone(ok); bad.opportunities[0].requirements[0].evidenceValidUntil = 'mañana';
+  assert.throws(() => scope.PliegoClaroBackup.validate(bad, {}, defaults), /Vigencia/);
 });

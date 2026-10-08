@@ -719,7 +719,7 @@ function renderDetail() {
   }));
   detailElement.querySelectorAll("[data-decision]").forEach((button) => button.addEventListener("click", () => {
     if (button.dataset.decision === "GO" && !PliegoClaroWorkflow.canGo(item)) {
-      showToast("Faltan requisitos decisivos con documento revisado y evidencia de la empresa.");
+      showToast(PliegoClaroWorkflow.deadlinePassed(item) ? "El plazo de presentación ya ha pasado: no se puede marcar GO." : "Faltan requisitos decisivos con documento revisado y evidencia vigente de la empresa.");
       return;
     }
     commitExpediente(item.id, (draft) => {
@@ -796,7 +796,8 @@ function bindWorkflowForms(item) {
   bind("[data-requirement-form]", async (data, form) => {
     const index = data.index === "" ? null : Number(data.index);
     if (index !== null && (!Number.isInteger(index) || !item.requirements[index])) throw new Error("Requisito no encontrado.");
-    const req = PliegoClaroWorkflow.requirement({ ...data, critical: form.elements.critical.checked }, index === null ? crypto.randomUUID() : item.requirements[index].id || String(index), item.documents || [], new Date().toISOString());
+    const me = PliegoCloud.state.members.find((member) => member.userId === PliegoCloud.state.user?.id);
+    const req = PliegoClaroWorkflow.requirement({ ...data, critical: form.elements.critical.checked, verifiedBy: me?.name || PliegoCloud.state.user?.email || "" }, index === null ? crypto.randomUUID() : item.requirements[index].id || String(index), item.documents || [], new Date().toISOString());
     if (await commitExpediente(item.id, (draft) => {
       if (index === null) draft.requirements.push(req); else draft.requirements[index] = req;
       recordHistory(draft, `Requisito ${index === null ? "añadido" : "actualizado"}: ${req.text}`, `${req.source} · Estado: ${req.status} · Comprobación manual.`);
@@ -967,7 +968,7 @@ function renderSettingsMarkup() {
         <section class="settings-section" id="ajuste-datos">
           <div class="settings-section-heading"><div><span class="settings-kicker">06 · SOBERANÍA</span><h2>Datos y resguardo</h2><p>Exporta o importa una copia antes de probar cambios importantes. El tamaño mostrado es orientativo del almacenamiento de esta prueba.</p></div><span class="settings-section-icon">□</span></div>
           <div class="settings-storage"><div><strong>Datos del espacio en el servidor</strong><span>${storageBytes} bytes de expedientes, ajustes y equipo · los PDF se guardan aparte con su huella</span></div></div>
-          <div class="settings-action-grid"><button class="settings-action" data-export-local type="button"><strong>↓ Exportar el espacio</strong><span> expedientes, ajustes, equipo, notas, comentarios, avisos, actividad y lista de documentos (JSON)</span></button><label class="settings-action"><strong>↑ Traer copia de la beta o de otro espacio</strong><span> vista previa, duplicados y confirmación; todo o nada, sin borrar lo existente</span><input data-import-local type="file" accept="application/json" hidden /></label><button class="settings-action" data-settings-defaults type="button"><strong>↺ Restaurar ajustes</strong><span> volver a los valores del MVP</span></button></div>
+          <div class="settings-action-grid"><button class="settings-action" data-export-local type="button"><strong>↓ Exportar datos (JSON)</strong><span> expedientes, ajustes, equipo, notas, texto extraído, análisis, comentarios, avisos y lista de originales. No incluye los archivos.</span></button><button class="settings-action" data-export-full type="button"><strong>↓ Copia completa (.zip)</strong><span> todo lo anterior más los originales con su huella SHA-256 verificada; se restaura aquí mismo</span></button><label class="settings-action"><strong>↑ Traer copia de la beta o de otro espacio</strong><span> vista previa, duplicados y confirmación; todo o nada, sin borrar lo existente</span><input data-import-local type="file" accept="application/json,.json,application/zip,.zip" hidden /></label><button class="settings-action" data-settings-defaults type="button"><strong>↺ Restaurar ajustes</strong><span> volver a los valores del MVP</span></button></div>
         </section>
 
         <section class="settings-section" id="ajuste-apariencia">
@@ -1196,6 +1197,7 @@ function renderRoute() {
     if (await persistSettings({ ...defaultSettings, workspaceName: settings.workspaceName }, "Ajustes restaurados.")) render();
   });
   routeElement.querySelector("[data-export-local]")?.addEventListener("click", () => exportWorkspace());
+  routeElement.querySelector("[data-export-full]")?.addEventListener("click", () => exportFull());
   routeElement.querySelector("[data-import-local]")?.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1371,7 +1373,7 @@ async function retryDraft(clientId) {
 function exportWorkspace() {
   guarded(async () => {
     const extras = await PliegoCloud.exportExtras();
-    const payload = { format: "pliego-claro-mvp", version: 2, exportedAt: new Date().toISOString(), opportunities, settings, team: team.filter((member) => !member.isMember).map(({ id, name, role, note }) => ({ id, name, role, note })), notes: notes.map(({ id, kind, text, opportunityId, createdAt }) => ({ id, kind, text, opportunityId, createdAt })), cloud: extras, notice: "Copia completa del espacio. Los PDF originales no van dentro: se listan con su huella SHA-256." };
+    const payload = { ...currentBase(), cloud: { ...extras, documents: extras.documents.map(({ storage_path, ...rest }) => rest) }, notice: "Exportación de datos. Los archivos originales NO van dentro: usa «Copia completa (.zip)» para conservarlos." };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1384,7 +1386,81 @@ function exportWorkspace() {
   }, "No se pudo exportar.");
 }
 
+function currentBase() {
+  return { format: "pliego-claro-mvp", version: 2, exportedAt: new Date().toISOString(), opportunities, settings, team: team.filter((member) => !member.isMember).map(({ id, name, role, note }) => ({ id, name, role, note })), notes: notes.map(({ id, kind, text, opportunityId, createdAt }) => ({ id, kind, text, opportunityId, createdAt })) };
+}
+
+async function exportFull() {
+  const status = (message) => setSaveStatus("saving", message) || (document.querySelector("#saveStatus").textContent = message);
+  return guarded(async () => {
+    const { blob, manifest, name } = await PliegoFullBackup.exportFull(currentBase(), status);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = name; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    setSaveStatus("idle");
+    const failed = manifest.files.filter((f) => !f.zipPath || f.verified === false);
+    showToast(failed.length ? `Copia descargada, pero ${failed.length} originales no se pudieron incluir o verificar: revisa manifiesto.json.` : `Copia completa descargada: ${manifest.counts.expedientes} expedientes y ${manifest.counts.documentos} originales verificados.`);
+    return true;
+  }, "No se pudo generar la copia completa.");
+}
+
+async function importFullFile(file) {
+  if (file.size > 300 * 1024 * 1024) { showToast("La copia supera 300 MB. No se ha modificado nada."); return; }
+  const status = (message) => { const el = document.querySelector("#saveStatus"); if (el) el.textContent = message; };
+  status("Verificando copia…");
+  let pack, restored;
+  try {
+    const JSZip = await PliegoFullBackup.loadJSZip();
+    pack = await PliegoFullBackup.readPackage(JSZip, file);
+    restored = PliegoClaroBackup.validate(pack.payload, { notes: [], team: [] }, defaultSettings);
+  } catch (error) { setSaveStatus("idle"); showToast(`No se ha podido importar: ${error.message}`); return; }
+  const duplicates = restored.opportunities.filter((item) => opportunities.some((entry) => entry.id === item.id));
+  const counts = pack.manifest.counts;
+  const summary = `Copia completa de «${pack.manifest.workspace}» (${new Date(pack.manifest.createdAt).toLocaleString("es-ES")}), huellas verificadas:
+· ${counts.expedientes} expedientes (${duplicates.length} ya existen aquí) · ${counts.notas} notas · ${counts.roles} roles
+· ${counts.documentos} originales · ${counts.paginas} páginas de texto · ${counts.comentarios} comentarios
+
+No se recrean usuarios ni permisos: vuelve a invitar a las personas. No se borra nada del espacio actual.`;
+  let mode = "skip";
+  if (duplicates.length) {
+    const answer = window.prompt(`${summary}
+
+¿Qué hacemos con los ${duplicates.length} duplicados?
+  OMITIR → conservar los del espacio (recomendado)
+  COPIA  → importarlos como copias nuevas`, "OMITIR");
+    if (answer === null) { setSaveStatus("idle"); showToast("Importación cancelada. No se ha cambiado nada."); return; }
+    mode = /^copia/i.test(answer.trim()) ? "copy" : "skip";
+  } else if (!window.confirm(`${summary}
+
+¿Restaurar en el espacio actual?`)) { setSaveStatus("idle"); showToast("Importación cancelada. No se ha cambiado nada."); return; }
+  const before = { expedientes: opportunities.length, notas: notes.length };
+  const result = await guarded(() => PliegoCloud.importBackup({ ...pack.payload, opportunities: restored.opportunities, notes: restored.notes, team: restored.team, settings: restored.settings }, mode, window.confirm("¿Aplicar también el perfil de empresa y los ajustes de la copia?")), "No se pudo importar. No se ha cambiado nada.");
+  if (!result) { setSaveStatus("idle"); return; }
+  await reloadWorkspace();
+  const { report, docMap } = await PliegoFullBackup.restoreFiles(pack, result.mapping || {}, status);
+  // Las referencias de los expedientes restaurados apuntan ahora a los originales nuevos.
+  for (const [oldId, target] of Object.entries(result.mapping || {})) {
+    if (!target.imported) continue;
+    const item = opportunities.find((entry) => entry.id === target.id);
+    if (item && PliegoFullBackup.remapStoredDocuments(item, docMap)) await guarded(() => PliegoCloud.saveExpediente(item), "No se pudo actualizar una referencia documental.");
+  }
+  await reloadWorkspace();
+  render();
+  setSaveStatus("saved");
+  window.alert(`Restauración terminada.
+Expedientes: ${before.expedientes} → ${opportunities.length} (${result.expedientes} nuevos, ${result.expedientesOmitidos} omitidos)
+Notas: ${before.notas} → ${notes.length}
+Originales restaurados: ${report.documentos} (huella comprobada) · ya existentes u omitidos: ${report.omitidos}
+Páginas de texto: ${report.paginas} · Comentarios: ${report.comentarios}
+${report.errores.length ? `
+Incidencias:
+${report.errores.join("\n")}` : ""}
+Abre un expediente y comprueba un original, una evidencia y una tarea.`);
+}
+
 function importBackupFile(file) {
+  if (/\.zip$/i.test(file.name)) { importFullFile(file); return; }
   if (file.size > 5 * 1024 * 1024) { showToast("La copia supera 5 MB. No se ha modificado nada."); return; }
   const reader = new FileReader();
   reader.addEventListener("load", async () => {
@@ -1509,6 +1585,7 @@ globalThis.PliegoApp = {
   tasksFor: (item) => taskItems(item),
   economicStatus: (item) => { const analysis = economicAnalysis(item); return `${analysis.status}. ${analysis.complete ? `Escenario probable: ${formatEuros(analysis.scenarios[1].result)}.` : `Faltan ${analysis.missing.length} bloques de coste; un coste desconocido no se cuenta como cero.`}`; },
   createFromTender,
+  exportFull,
   reloadWorkspace,
   boot,
   signOut

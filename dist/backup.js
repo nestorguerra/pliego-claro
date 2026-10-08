@@ -27,10 +27,11 @@
       check(item.title.trim() !== "", "Oportunidad sin título.");
       check(["GO", "REVISAR", "NO-GO"].includes(item.decision), "Decisión no válida.");
       rows(item.requirements, "Requisitos", ["text", "source", "status"]);
-      check(item.requirements.every((row) => ["confirmed", "pending", "unknown"].includes(row.status)), "Estado de requisito no válido.");
+      check(item.requirements.every((row) => ["confirmed", "partial", "pending", "unknown"].includes(row.status)), "Estado de requisito no válido.");
       const requirementIds = new Set();
       item.requirements.forEach((row, index) => {
-        ["id", "documentId", "citation", "companyEvidence", "evidenceUrl", "verifiedAt", "documentReviewedAt", "sourceUrl", "sourceVersion"].forEach((key) => check(row[key] === undefined || typeof row[key] === "string", `Requisito: ${key} no válido.`));
+        check(!row.evidenceValidUntil || (typeof row.evidenceValidUntil === "string" && /^\d{4}-\d{2}-\d{2}$/.test(row.evidenceValidUntil) && validDate(row.evidenceValidUntil)), "Vigencia de evidencia no válida.");
+        ["id", "documentId", "citation", "companyEvidence", "evidenceUrl", "verifiedAt", "verifiedBy", "documentReviewedAt", "sourceUrl", "sourceVersion"].forEach((key) => check(row[key] === undefined || typeof row[key] === "string", `Requisito: ${key} no válido.`));
         check(row.critical === undefined || typeof row.critical === "boolean", "Requisito decisivo no válido.");
         const id = row.id || String(index);
         check(!requirementIds.has(id), "Identificadores de requisitos repetidos: podrían mezclar asignaciones.");

@@ -1,4 +1,4 @@
-name: Copia de seguridad cifrada
+name: Copia de seguridad y prueba de restauración
 
 on:
   schedule:
@@ -11,34 +11,72 @@ permissions:
 jobs:
   backup:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
     steps:
+      - name: Comprobar secretos
+        id: check
+        run: |
+          if [ -n "$BACKUP_PASSPHRASE" ] && [ -n "$PROJECT_REF" ] && [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "::warning::Faltan secretos de copia: no se hace copia."; echo "ok=false" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
+        if: steps.check.outputs.ok == 'true'
       - uses: supabase/setup-cli@v1
+        if: steps.check.outputs.ok == 'true'
         with:
           version: 2.119.0
-      - name: Volcado de esquema y datos (incluye usuarios de Auth)
+      - name: Clave de servicio del proyecto (enmascarada)
+        if: steps.check.outputs.ok == 'true'
         run: |
-          if [ -z "$BACKUP_PASSPHRASE" ] || [ -z "$PROJECT_REF" ]; then echo "::warning::Faltan secretos de copia."; exit 0; fi
-          mkdir -p "$RUNNER_TEMP/copia"
+          python3 - <<'PY'
+          import json, os, urllib.request
+          req = urllib.request.Request(f"https://api.supabase.com/v1/projects/{os.environ['PROJECT_REF']}/api-keys?reveal=true", headers={"Authorization": f"Bearer {os.environ['SUPABASE_ACCESS_TOKEN']}"})
+          keys = json.load(urllib.request.urlopen(req))
+          key = next((k["api_key"] for k in keys if k.get("type") == "secret" and k.get("api_key")), None) or next((k["api_key"] for k in keys if k.get("name") == "service_role"), None)
+          print(f"::add-mask::{key}")
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"SUPABASE_SECRET_KEY={key}\nSUPABASE_URL=https://{os.environ['PROJECT_REF']}.supabase.co\n")
+          PY
+      - name: Recuentos, volcado y originales
+        if: steps.check.outputs.ok == 'true'
+        run: |
+          C="$RUNNER_TEMP/copia"; mkdir -p "$C"
+          python3 ops/source_counts.py "$C/recuentos.json"
           supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-          supabase db dump --linked --password "$SUPABASE_DB_PASSWORD" -f "$RUNNER_TEMP/copia/esquema.sql"
-          supabase db dump --linked --password "$SUPABASE_DB_PASSWORD" --data-only --use-copy -f "$RUNNER_TEMP/copia/datos.sql"
-          supabase db dump --linked --password "$SUPABASE_DB_PASSWORD" --role-only -f "$RUNNER_TEMP/copia/roles.sql"
+          supabase db dump --linked --password "$SUPABASE_DB_PASSWORD" -f "$C/esquema.sql"
+          supabase db dump --linked --password "$SUPABASE_DB_PASSWORD" --data-only --use-copy -s public,auth -f "$C/datos.sql"
+          python3 ops/backup_files.py "$C"
+          cp -r supabase/migrations "$C/migraciones"
+          git rev-parse HEAD > "$C/version.txt"
+      - name: Cifrar
+        if: steps.check.outputs.ok == 'true'
+        run: |
           tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/copia.tgz" copia
           openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "$RUNNER_TEMP/copia.tgz" -out "$RUNNER_TEMP/pliego-claro-copia.tgz.enc" -pass env:BACKUP_PASSPHRASE
-          # Prueba de recuperación: se descifra y se comprueba que el volcado contiene las tablas clave.
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$RUNNER_TEMP/pliego-claro-copia.tgz.enc" -pass env:BACKUP_PASSPHRASE | tar -xzO copia/esquema.sql | grep -q "CREATE TABLE.*expedientes"
           rm -rf "$RUNNER_TEMP/copia" "$RUNNER_TEMP/copia.tgz"
-          sha256sum "$RUNNER_TEMP/pliego-claro-copia.tgz.enc"
+          sha256sum "$RUNNER_TEMP/pliego-claro-copia.tgz.enc" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Restaurar en un Supabase local aislado y verificar
+        if: steps.check.outputs.ok == 'true'
+        run: |
+          # Se restaura desde el archivo CIFRADO, igual que se haría ante un incidente real.
+          mkdir -p "$RUNNER_TEMP/r" && openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$RUNNER_TEMP/pliego-claro-copia.tgz.enc" -pass env:BACKUP_PASSPHRASE | tar -xz -C "$RUNNER_TEMP/r"
+          R="$RUNNER_TEMP/r/copia"
+          mkdir -p "$RUNNER_TEMP/local" && cp -r supabase "$RUNNER_TEMP/local/" && rm -rf "$RUNNER_TEMP/local/supabase/migrations" && cp -r "$R/migraciones" "$RUNNER_TEMP/local/supabase/migrations"
+          cd "$RUNNER_TEMP/local"
+          supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta
+          DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          # Las migraciones ya crearon el esquema; se cargan los datos sin disparadores (no se recrean espacios).
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -q -c "truncate public.app_limits" -c "delete from storage.buckets where id = 'documents'"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -q -c "set session_replication_role = replica" -f "$R/datos.sql"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -q -c "insert into storage.buckets (id, name, public) values ('documents', 'documents', false) on conflict do nothing"
+          eval "$(supabase status -o env | grep -E '^(API_URL|SERVICE_ROLE_KEY|SECRET_KEY)=')"
+          LOCAL_URL="$API_URL" LOCAL_KEY="${SECRET_KEY:-$SERVICE_ROLE_KEY}" COUNTS_FILE="$R/recuentos.json" FILES_DIR="$R" python3 "$GITHUB_WORKSPACE/ops/restore_check.py"
       - uses: actions/upload-artifact@v4
-        if: env.BACKUP_PASSPHRASE != ''
+        if: steps.check.outputs.ok == 'true'
         with:
           name: copia-cifrada-${{ github.run_id }}
           path: ${{ runner.temp }}/pliego-claro-copia.tgz.enc
           retention-days: 14
-          if-no-files-found: ignore

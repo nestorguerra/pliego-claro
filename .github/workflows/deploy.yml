@@ -91,7 +91,7 @@ jobs:
               "mailer_secure_email_change_enabled": True,
               "mailer_otp_exp": 3600,
               "password_min_length": 10,
-              "security_update_password_require_reauthentication": False,
+              "security_update_password_require_reauthentication": True,
               "mailer_subjects_confirmation": "Confirma tu cuenta de Pliego Claro",
               "mailer_subjects_recovery": "Restablece tu contraseña de Pliego Claro",
               "mailer_subjects_email_change": "Confirma tu nuevo correo en Pliego Claro",
@@ -151,3 +151,17 @@ jobs:
           path: ./dist
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  estado:
+    name: Estado de la entrega (web publicada ≠ servicio listo)
+    needs: [backend, web]
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      REQUIRE_SAAS: ${{ vars.REQUIRE_SAAS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comprobar web, autenticación, correo, funciones, base de datos, IA y fuente oficial
+        run: python3 ops/health_check.py

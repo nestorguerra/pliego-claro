@@ -345,6 +345,108 @@ def busqueda_reproducible_con_filtros():
         assert stats["vigentes"] >= 2
 
 
+def as_service():
+    c = psycopg.connect(DSN)
+    c.execute("set role service_role")
+    return c
+
+
+def reserve(c, cache_key, estimate=0.5, request_id=None, user=None, workspace=None, document=None, expediente=None):
+    return c.execute("select ai_reserve(%s, %s, %s, %s, %s::text, 'claude-opus-5-5', 'v1', %s::numeric, %s::text, 't', 'p')",
+                     (workspace or WS_A, expediente or AI_EXP, document or AI_DOC, user or ANA, cache_key, estimate, request_id)).fetchone()[0]
+
+
+def ai_fixture():
+    data = expediente("Para IA")
+    with As(ANA) as c:
+        exp_id = c.execute("insert into expedientes (workspace_id, client_id, data) values (%s, %s, %s) returning id", (WS_A, data["id"], json.dumps(data))).fetchone()[0]
+        doc = c.execute("""insert into documents (workspace_id, expediente_id, name, kind, origin, storage_path, sha256, size_bytes, mime_type)
+                           values (%s, %s, 'PCAP IA.pdf', 'PCAP', 'upload', %s, %s, 10, 'application/pdf') returning id""", (WS_A, exp_id, f"{WS_A}/{exp_id}/ia.pdf", "d" * 64)).fetchone()[0]
+    return exp_id, doc
+
+
+AI_EXP, AI_DOC = ai_fixture()
+
+
+@test
+def ia_reserva_solo_desde_servidor_y_bloquea_por_presupuesto():
+    with As(ANA) as c:
+        expect_error(lambda: reserve(c, "k-auth"), "permission denied")
+    with as_service() as c:
+        c.execute("update app_limits set value = 1 where key = 'ai_monthly_budget_usd'")
+        c.execute("update app_limits set value = 100 where key in ('ai_user_daily_requests', 'ai_workspace_daily_requests')")
+        c.commit()
+        first = reserve(c, "k1", 0.6); c.commit()
+        assert first["status"] == "reserved", first
+        second = reserve(c, "k2", 0.6); c.commit()
+        assert second["status"] == "blocked" and "presupuesto" in second["reason"], second
+
+
+@test
+def ia_doble_clic_y_mismo_documento_en_curso_no_cobran_dos_veces():
+    with as_service() as c:
+        c.execute("update app_limits set value = 100 where key = 'ai_monthly_budget_usd'"); c.commit()
+        a = reserve(c, "k-dup", 0.2, request_id="req-1"); c.commit()
+        b = reserve(c, "k-dup", 0.2, request_id="req-1"); c.commit()
+        assert a["status"] == "reserved" and b["status"] == "duplicate" and a["id"] == b["id"], (a, b)
+        d = reserve(c, "k-dup", 0.2, request_id="req-2"); c.commit()
+        assert d["status"] == "running" and d["id"] == a["id"], d
+
+
+@test
+def ia_concurrencia_no_supera_el_limite():
+    import threading
+    with as_service() as c:
+        c.execute("update app_limits set value = 0 where key = 'ai_monthly_budget_usd'")
+        spent = c.execute("select coalesce(sum(cost_usd),0) from ai_analyses where status <> 'blocked'").fetchone()[0]
+        c.execute("update app_limits set value = %s where key = 'ai_monthly_budget_usd'", (float(spent) + 1.0,)); c.commit()
+    outcomes = []
+    barrier = threading.Barrier(6)
+    def worker(i):
+        with as_service() as c:
+            barrier.wait()
+            outcomes.append(reserve(c, f"k-conc-{i}", 0.4)["status"]); c.commit()
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(6)]
+    [th.start() for th in threads]; [th.join() for th in threads]
+    assert outcomes.count("reserved") == 2, outcomes  # 2 × 0,4 ≤ 1 < 3 × 0,4
+
+
+@test
+def ia_interruptor_y_limite_por_analisis():
+    with as_service() as c:
+        c.execute("update app_limits set value = 1000 where key = 'ai_monthly_budget_usd'")
+        c.execute("update app_limits set value = 1 where key = 'ai_max_cost_per_analysis_usd'")
+        c.commit()
+        assert reserve(c, "k-big", 1.5)["status"] == "blocked"; c.commit()
+        c.execute("update app_limits set value = 0 where key = 'ai_enabled'"); c.commit()
+        res = reserve(c, "k-off", 0.1); c.commit()
+        assert res["status"] == "blocked" and "desactivada" in res["reason"], res
+        c.execute("update app_limits set value = 1 where key = 'ai_enabled'"); c.commit()
+
+
+@test
+def copia_de_duplicados_remapea_notas_y_tareas():
+    original = expediente("Remapeo")
+    original["taskPlans"] = {f"next-{original['id']}": {"ownerId": "", "dueDate": "", "note": "Plan original"}, f"requirement-{original['id']}-r1": {"ownerId": "", "dueDate": "", "note": "Req"}}
+    original["official"] = {"tenderId": "x"}
+    payload = {"format": "pliego-claro-mvp", "version": 2, "opportunities": [original],
+               "notes": [{"id": "nota-remap", "text": "sobre el caso", "opportunityId": original["id"], "createdAt": "2026-10-01T09:00:00Z"}], "team": [], "settings": {}}
+    with As(BEA) as c:
+        first = c.execute("select import_workspace_backup(%s, %s, 'skip')", (WS_B, json.dumps(payload))).fetchone()[0]
+        assert first["mapping"][original["id"]] == {"id": original["id"], "imported": True}
+    with As(BEA) as c:
+        res = c.execute("select import_workspace_backup(%s, %s, 'copy')", (WS_B, json.dumps(payload))).fetchone()[0]
+        new_id = res["mapping"][original["id"]]["id"]
+        assert new_id != original["id"] and res["mapping"][original["id"]]["imported"]
+        data = c.execute("select data from expedientes where workspace_id = %s and client_id = %s", (WS_B, new_id)).fetchone()[0]
+        assert data["id"] == new_id and "official" not in data
+        assert set(data["taskPlans"]) == {f"next-{new_id}", f"requirement-{new_id}-r1"}, data["taskPlans"]
+        notes = c.execute("select expediente_client_id from notes where workspace_id = %s and text = 'sobre el caso' order by created_at, id", (WS_B,)).fetchall()
+        assert sorted(n[0] for n in notes) == sorted([original["id"], new_id]), notes
+        orig = c.execute("select data from expedientes where workspace_id = %s and client_id = %s", (WS_B, original["id"])).fetchone()[0]
+        assert set(orig["taskPlans"]) == {f"next-{original['id']}", f"requirement-{original['id']}-r1"}, "el original no cambia"
+
+
 for name, ok, detail in results:
     print(("ok   " if ok else "FAIL ") + name + ("" if ok else "\n" + detail))
 failed = [r for r in results if not r[1]]

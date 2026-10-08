@@ -64,3 +64,55 @@ Deno.test("esquema estricto sin propiedades libres", () => {
   assertEquals(OUTPUT_SCHEMA.properties.requirements.items.additionalProperties, false);
   assertEquals([...OUTPUT_SCHEMA.properties.requirements.items.required].sort(), Object.keys(OUTPUT_SCHEMA.properties.requirements.items.properties).sort());
 });
+
+// H05 · la caché cambia si cambia el perfil o el texto extraído (por ejemplo tras un OCR).
+import { actualCost, cacheKeyFor } from "../_shared/analysis.ts";
+Deno.test("la clave de caché incluye texto extraído y perfil", async () => {
+  const base = await cacheKeyFor("a".repeat(64), pages, { "Solvencia económica": "2 M€" });
+  const sameAgain = await cacheKeyFor("a".repeat(64), [...pages].reverse(), { "Solvencia económica": "2 M€" });
+  const otherProfile = await cacheKeyFor("a".repeat(64), pages, { "Solvencia económica": "3 M€" });
+  const afterOcr = await cacheKeyFor("a".repeat(64), [...pages, { page_number: 8, text: "Texto recuperado por OCR" }], { "Solvencia económica": "2 M€" });
+  assertEquals(base.cacheKey, sameAgain.cacheKey);
+  assert(base.cacheKey !== otherProfile.cacheKey);
+  assert(base.cacheKey !== afterOcr.cacheKey);
+  assert(base.cacheKey.endsWith(":claude-opus-5-5"));
+});
+
+Deno.test("coste real por modelo servido, fallback y caché; modelo desconocido al precio más alto", () => {
+  assertEquals(actualCost({ input_tokens: 1_000_000, output_tokens: 0 }, "claude-opus-5-5"), 4);
+  assertEquals(actualCost({ input_tokens: 0, output_tokens: 1_000_000 }, "modelo-desconocido"), 50);
+  assertEquals(actualCost({ iterations: [{ model: "claude-opus-5-5", input_tokens: 1_000_000, output_tokens: 0 }, { model: "claude-opus-4-8", input_tokens: 1_000_000, output_tokens: 0 }] }, "claude-opus-4-8"), 9);
+  assertEquals(actualCost({ input_tokens: 0, cache_read_input_tokens: 1_000_000, output_tokens: 0 }, "claude-opus-5-5"), 0.4);
+});
+
+// H08 · el borrado de cuenta se planifica entero antes de borrar nada.
+import { planDeletion } from "../_shared/account.ts";
+function fakeAdmin(members: Record<string, { user_id: string; role: string }[]>) {
+  return {
+    from(table: string) {
+      const filters: Record<string, string> = {};
+      const query = {
+        select() { return query; },
+        eq(column: string, value: string) { filters[column] = value; return query; },
+        single() { return Promise.resolve({ data: { name: `Espacio ${filters.id}` } }); },
+        then(resolve: (v: unknown) => void) {
+          if (table === "workspace_members" && filters.user_id) {
+            resolve({ data: Object.entries(members).flatMap(([ws, list]) => list.filter((m) => m.user_id === filters.user_id).map((m) => ({ workspace_id: ws, role: m.role }))), error: null });
+          } else resolve({ data: members[filters.workspace_id] || [], error: null });
+        },
+      };
+      return query;
+    },
+  };
+}
+Deno.test("borrado de cuenta: un espacio compartido bloquea todo antes de borrar", async () => {
+  const plan = await planDeletion(fakeAdmin({
+    solo: [{ user_id: "u", role: "owner" }],
+    compartido: [{ user_id: "u", role: "owner" }, { user_id: "v", role: "editor" }],
+    coTitular: [{ user_id: "u", role: "owner" }, { user_id: "w", role: "owner" }],
+    ajeno: [{ user_id: "x", role: "owner" }, { user_id: "u", role: "viewer" }],
+  }), "u");
+  assertEquals(plan.remove, ["solo"]);
+  assertEquals(plan.blockers, ["Espacio compartido"]);
+  assertEquals(plan.keep.sort(), ["ajeno", "coTitular"]);
+});

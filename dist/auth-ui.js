@@ -75,7 +75,7 @@
       } else if (kind === "signup") {
         if (!form.elements.privacy.checked) throw new Error("Confirma que has leído la información de privacidad.");
         const result = await PliegoCloud.signUp(data);
-        if (result.needsConfirmation) { mode = "check-email"; notice = `Hemos enviado un enlace de confirmación a ${lastEmail}. Ábrelo para activar la cuenta; caduca en 24 horas.`; render(); }
+        if (result.needsConfirmation) { mode = "check-email"; notice = `Hemos enviado un enlace de confirmación a ${lastEmail}. Ábrelo para activar la cuenta; caduca en una hora.`; render(); }
         else { hide(); await onAuthenticated(); }
       } else if (kind === "forgot") {
         await PliegoCloud.requestPasswordReset(String(data.email || ""));
