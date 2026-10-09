@@ -1495,11 +1495,38 @@ function importBackupFile(file) {
 // ---------------------------------------------------------------- arranque y sesión
 async function reloadWorkspace() {
   const data = await PliegoCloud.loadWorkspaceData();
+  applyWorkspaceData(data);
+}
+
+function applyWorkspaceData(data) {
   opportunities = data.opportunities.map(normalizeExpediente);
   settings = { ...defaultSettings, ...data.settings };
   notes = data.notes;
   team = [...data.members.map((member) => ({ id: `member-${member.userId}`, userId: member.userId, name: member.name || member.email, role: { owner: "Titular", admin: "Administración", editor: "Edición", viewer: "Lectura" }[member.role], note: "Miembro con cuenta", isMember: true })), ...data.team];
   if (!opportunities.some((item) => item.id === selectedId)) selectedId = opportunities[0]?.id || "";
+}
+
+function displayWorkspace(ws) {
+  const user = PliegoCloud.state.user;
+  const me = PliegoCloud.state.members.find((member) => member.userId === user.id);
+  const initials = (me?.name || user.email).split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  document.querySelector(".avatar").textContent = initials;
+  document.querySelector(".avatar").setAttribute("aria-label", `Sesión de ${me?.name || user.email}`);
+  document.querySelector("[data-workspace-mode]").textContent = `${ws.name} · ${{ owner: "Titular", admin: "Administración", editor: "Edición", viewer: "Lectura" }[ws.role]}`;
+  document.body.classList.toggle("read-only", !PliegoCloud.can("editor"));
+  if (PliegoCloud.demo) showDemoBanner();
+  setSaveStatus("idle");
+  render();
+}
+
+function bootDemo(data) {
+  applyWorkspaceData(data);
+  history.replaceState(null, "", `${location.pathname}${location.search}#hoy`);
+  displayWorkspace(data.workspace);
+  document.body.classList.remove("app-loading");
+  // Avisos y estadísticas completan la pantalla sin bloquear el acceso.
+  PliegoFeatures.onWorkspaceLoaded().then(() => render()).catch((error) => showToast(error.message));
+  return true;
 }
 
 let booting = null;
@@ -1517,16 +1544,7 @@ async function boot(preferredWorkspace) {
       await reloadWorkspace();
       await PliegoFeatures.onWorkspaceLoaded();
       PliegoCloud.subscribe(onRemoteChange);
-      const user = PliegoCloud.state.user;
-      const me = PliegoCloud.state.members.find((member) => member.userId === user.id);
-      const initials = (me?.name || user.email).split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
-      document.querySelector(".avatar").textContent = initials;
-      document.querySelector(".avatar").setAttribute("aria-label", `Sesión de ${me?.name || user.email}`);
-      document.querySelector("[data-workspace-mode]").textContent = `${ws.name} · ${{ owner: "Titular", admin: "Administración", editor: "Edición", viewer: "Lectura" }[ws.role]}`;
-      document.body.classList.toggle("read-only", !PliegoCloud.can("editor"));
-      if (PliegoCloud.demo) showDemoBanner();
-      setSaveStatus("idle");
-      render();
+      displayWorkspace(ws);
       openDocumentFromHash();
       if (!PliegoAuthUI.isLoading()) PliegoAuthUI.hide();
       return true;
@@ -1545,7 +1563,7 @@ function showDemoBanner() {
   if (!document.querySelector(".demo-banner")) {
     const banner = document.createElement("div");
     banner.className = "demo-banner";
-    banner.innerHTML = '<strong>Demostración · guardado local.</strong><span>IA, equipo y correos simulados. Usa datos de prueba.</span><a href="web/privacidad.html">Datos y privacidad</a>';
+    banner.innerHTML = `<strong>Demostración · ${PliegoDemo.persistent ? "guardado local" : "sesión temporal"}.</strong><span>${PliegoDemo.persistent ? "IA, equipo y correos simulados. Usa datos de prueba." : "Este navegador bloquea el guardado. Exporta una copia antes de cerrar."}</span><a href="web/privacidad.html">Datos y privacidad</a>`;
     document.body.insertBefore(banner, document.querySelector(".app-shell"));
   }
   const stamp = document.querySelector(".release-stamp");
@@ -1609,7 +1627,7 @@ window.addEventListener("hashchange", () => { if (/^#documento=/.test(window.loc
 window.addEventListener("online", () => setSaveStatus("idle"));
 window.addEventListener("offline", () => setSaveStatus("offline"));
 window.addEventListener("error", (event) => PliegoCloud.reportClientError(event.message, "window"));
-PliegoAuthUI.init(() => boot());
+PliegoAuthUI.init((data) => PliegoCloud.demo && data?.workspace ? bootDemo(data) : boot());
 PliegoCloud.onAuthChange((event) => {
   if (event === "PASSWORD_RECOVERY") { PliegoAuthUI.show("recovery"); return; }
   if (event === "SIGNED_OUT" && opportunities.length && !PliegoAuthUI.isOpen()) PliegoAuthUI.show("expired");

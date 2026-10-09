@@ -19,6 +19,8 @@
 
   // ------------------------------------------------------------ almacén
   let db = null;
+  let memorySession = null;
+  let persistent = true;
   function load() {
     if (db) return db;
     try { db = JSON.parse(localStorage.getItem(STORE)); } catch (_) { db = null; }
@@ -47,6 +49,13 @@
     await new Promise((resolve, reject) => { const tx = handle.transaction("files", "readwrite"); tx.objectStore("files").put(blob, path); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
   }
   async function getFile(path) {
+    const doc = table("documents").find((row) => row.storage_path === path);
+    const bundled = doc?.bundled_source || (doc?.id === "00000000-0000-4000-8000-00000000d0c1" ? "demo/noia-pcap.pdf" : null);
+    if (bundled) {
+      const response = await fetch(bundled);
+      if (!response.ok) throw new CloudError("network", "No se pudo abrir el PDF de ejemplo. Vuelve a intentarlo.");
+      return response.blob();
+    }
     const handle = await files();
     return new Promise((resolve, reject) => { const req = handle.transaction("files").objectStore("files").get(path); req.onsuccess = () => resolve(req.result || null); req.onerror = () => reject(req.error); });
   }
@@ -56,7 +65,7 @@
 
   // ------------------------------------------------------------ licitaciones reales
   let datasetPromise = null;
-  const dataset = () => (datasetPromise ||= fetch(DATASET).then((r) => { if (!r.ok) throw new Error(); return r.json(); }).catch(() => { datasetPromise = null; throw new CloudError("network", "No se pudo cargar la fuente de licitaciones."); }));
+  const dataset = () => globalThis.PliegoDemoData?.dataset ? Promise.resolve(globalThis.PliegoDemoData.dataset) : (datasetPromise ||= fetch(DATASET).then((r) => { if (!r.ok) throw new Error(); return r.json(); }).catch(() => { datasetPromise = null; throw new CloudError("network", "No se pudo cargar la fuente de licitaciones."); }));
   const madrid = (iso) => iso ? new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso)) : null;
   async function searchTenders(p) {
     const { tenders } = await dataset();
@@ -311,7 +320,7 @@
   };
 
   // ------------------------------------------------------------ sesión
-  function session() { try { return JSON.parse(localStorage.getItem(SESSION)); } catch (_) { return null; } }
+  function session() { if (memorySession) return memorySession; try { return JSON.parse(localStorage.getItem(SESSION)); } catch (_) { return null; } }
   const nameFromEmail = (email) => String(email).split("@")[0].split(/[._-]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ") || "Usuario";
   async function startSession(email, password, name) {
     const issue = base.validateEmail(email);
@@ -319,12 +328,19 @@
     if (!String(password || "").length) throw new CloudError("auth", "Escribe tu contraseña.");
     // La contraseña no se guarda ni se compara.
     const user = { email: email.trim().toLowerCase(), name: String(name || "").trim() || nameFromEmail(email) };
-    try { localStorage.setItem(SESSION, JSON.stringify(user)); } catch (_) { /* sin almacenamiento */ }
-    await ensureSeed(user);
-    const me = load().members.find((m) => m.userId === ME);
-    if (me && (me.email !== user.email || name)) { me.email = user.email; me.name = user.name; save(); }
-    state.user = { id: ME, email: user.email };
+    activateSession(user);
     return { user: state.user };
+  }
+  function activateSession(user) {
+    seedWorkspace(user);
+    memorySession = user;
+    try { localStorage.setItem(SESSION, JSON.stringify(user)); } catch (_) { persistent = false; }
+    const me = load().members.find((m) => m.userId === ME);
+    if (me && (me.email !== user.email || me.name !== user.name)) {
+      me.email = user.email; me.name = user.name;
+      try { save(); } catch (_) { persistent = false; }
+    }
+    state.user = { id: ME, email: user.email };
   }
 
   // ------------------------------------------------------------ API con el mismo contrato que el servidor
@@ -332,6 +348,16 @@
     state.meta = {};
     Object.values(store.expedientes).filter((row) => !row.deletedAt).forEach((row) => { state.meta[row.clientId] = { rowId: `demo-${row.clientId}`, version: row.version, tenderId: row.tenderId || null, updatedAt: row.updatedAt }; });
   };
+  function workspaceData() {
+    const store = load();
+    metaFrom(store);
+    state.settingsVersion = store.settings.version;
+    state.members = store.members.map(({ userId, role, name, email }) => ({ userId, role, name, email }));
+    return {
+      opportunities: Object.values(store.expedientes).filter((row) => !row.deletedAt).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))).map((row) => ({ ...clone(row.data), id: row.clientId })),
+      settings: store.settings.data, notes: store.notes.filter((n) => !n.deletedAt), team: store.roles.filter((r) => !r.deletedAt), members: state.members
+    };
+  }
   const overrides = {
     demo: true,
     configured: true,
@@ -340,7 +366,7 @@
     async currentSession() {
       const s = session();
       if (!s) return null;
-      await ensureSeed(s);
+      seedWorkspace(s);
       state.user = { id: ME, email: s.email };
       return { user: state.user };
     },
@@ -353,7 +379,7 @@
       await startSession(email, password, name);
       return { needsConfirmation: false };
     },
-    async signOut() { try { localStorage.removeItem(SESSION); } catch (_) { /* nada */ } state.user = null; },
+    async signOut() { memorySession = null; try { localStorage.removeItem(SESSION); } catch (_) { /* nada */ } state.user = null; },
     async requestPasswordReset(email) { const issue = base.validateEmail(email); if (issue) throw new CloudError("validation", issue); },
     async resendConfirmation() {},
     async updatePassword(password) { const issue = base.validatePassword(password); if (issue) throw new CloudError("validation", issue); },
@@ -362,16 +388,7 @@
     chooseWorkspace() { state.workspaceId = WS; state.role = state.workspaces[0].role; return state.workspaces[0]; },
     async createWorkspace() { throw new CloudError("server", "Este plan incluye un único espacio de empresa."); },
     async renameWorkspace(name) { load().settings.data.workspaceName = name; save(); },
-    async loadWorkspaceData() {
-      const store = load();
-      metaFrom(store);
-      state.settingsVersion = store.settings.version;
-      state.members = store.members.map(({ userId, role, name, email }) => ({ userId, role, name, email }));
-      return {
-        opportunities: Object.values(store.expedientes).filter((row) => !row.deletedAt).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))).map((row) => ({ ...clone(row.data), id: row.clientId })),
-        settings: store.settings.data, notes: store.notes.filter((n) => !n.deletedAt), team: store.roles.filter((r) => !r.deletedAt), members: state.members
-      };
-    },
+    async loadWorkspaceData() { return workspaceData(); },
     async createExpediente(item, tenderId = null) {
       const store = load();
       if (store.expedientes[item.id] && !store.expedientes[item.id].deletedAt) throw new CloudError("duplicate", "Ya existe un registro con ese identificador.");
@@ -483,18 +500,24 @@
   };
 
   // ------------------------------------------------------------ datos iniciales del espacio
-  let seeding = null;
-  function ensureSeed(user) {
-    if (load().seeded) return Promise.resolve();
-    seeding ||= globalThis.PliegoDemoSeed.seed({ user, WS, ME, load, save, table, putFile, sha256, dataset, log, analyzePages })
-      .then(() => { load().seeded = true; save(); })
-      .catch((error) => { seeding = null; throw error; });
-    return seeding;
+  function seedWorkspace(user) {
+    if (load().seeded) return;
+    if (!globalThis.PliegoDemoData?.workspace) throw new CloudError("config", "No se han cargado los ejemplos de la demo. Recarga la página.");
+    db = clone(globalThis.PliegoDemoData.workspace);
+    const me = db.members.find((member) => member.userId === ME);
+    if (me) { me.name = user.name; me.email = user.email; }
+    try { save(); } catch (_) { persistent = false; }
+  }
+  function enter() {
+    activateSession({ name: "Demo", email: "demo@licitia.invalid" });
+    const workspace = { id: WS, name: load().settings.data.workspaceName || "Mi empresa", role: load().members.find((member) => member.userId === ME)?.role || "owner" };
+    state.workspaces = [workspace]; state.workspaceId = WS; state.role = workspace.role;
+    return { ...workspaceData(), workspace };
   }
 
   globalThis.PliegoCloud = Object.freeze({ ...base, ...overrides });
   globalThis.PliegoDemo = Object.freeze({
-    active: true, analyzePages, WS, ME,
+    active: true, analyzePages, WS, ME, enter, get persistent() { return persistent; },
     reset() { try { localStorage.removeItem(STORE); localStorage.removeItem(SESSION); indexedDB.deleteDatabase("pliego-claro-demo-archivos"); } catch (_) { /* nada */ } }
   });
 })();

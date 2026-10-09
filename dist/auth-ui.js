@@ -76,13 +76,13 @@
     element.querySelector("#authTitle")?.focus();
     const minimumWait = new Promise((resolve) => setTimeout(resolve, 7000));
     try {
-      await Promise.all([minimumWait, (async () => {
-        await PliegoCloud.signIn("demo@licitia.invalid", "DemoLocal2026");
-        const ready = await onAuthenticated();
-        if (ready === false) throw new Error("No se pudo cargar el espacio. Vuelve a intentarlo.");
-      })()]);
+      await minimumWait;
+      // El ejemplo está incluido en la página: no espera red, PDF, IndexedDB ni servicios.
+      const data = PliegoDemo.enter();
+      const ready = onAuthenticated(data);
+      if (ready !== true) throw new Error("No se pudo abrir la demostración. Recarga la página.");
       hide();
-      const heading = document.querySelector("main h1");
+      const heading = document.querySelector("#routeView h1") || document.querySelector("main h1");
       if (heading) { heading.setAttribute("tabindex", "-1"); heading.focus({ preventScroll: true }); }
     } catch (error) {
       show("login");

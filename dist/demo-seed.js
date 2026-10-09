@@ -20,7 +20,7 @@
   }
 
   async function seed(ctx) {
-    const { user, WS, ME, load, table, putFile, sha256, dataset, log, analyzePages } = ctx;
+    const { user, WS, ME, load, table, putFile, sha256, dataset, log, analyzePages, extractPages = extract } = ctx;
     const store = load();
     const W = globalThis.PliegoClaroWorkflow;
     const F = globalThis.PliegoFeatures;
@@ -82,7 +82,7 @@
       const path = `${WS}/${rowId}/pcap-mellora-caminos.pdf`;
       await putFile(path, blob);
       const docId = "00000000-0000-4000-8000-00000000d0c1";
-      const pages = await extract(blob);
+      const pages = await extractPages(blob);
       table("documents").push({ id: docId, workspace_id: WS, expediente_id: rowId, name: "PCAP MELLORA CAMINOS.pdf", kind: "PCAP", version_label: "Publicado 05/10/2026", origin: "official", source_url: (noia.documents || []).find((d) => d.kind === "PCAP")?.url || noia.link, storage_path: path, sha256: sha, size_bytes: blob.size, mime_type: "application/pdf", supersedes_id: null, extraction_status: "done", page_count: pages.length, uploaded_by: people.laura.userId, created_at: daysAgo(8, 9), deleted_at: null });
       pages.forEach((p) => table("document_pages").push({ document_id: docId, workspace_id: WS, page_number: p.page_number, text: p.text, method: "text", created_at: daysAgo(8, 9) }));
       log(rowId, "documento_archivado", `PCAP MELLORA CAMINOS.pdf · sha256 ${sha.slice(0, 12)}`, people.laura.userId, daysAgo(8, 9));
