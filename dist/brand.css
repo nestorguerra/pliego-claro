@@ -30,7 +30,15 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .workspace-page .opportunity-card h3 { font-size: 15px; }
 .workspace-page .detail-panel::before, .workspace-page .detail-panel::after { display: none; }
 .workspace-page .auth-screen { padding: 24px; display: flex; align-items: flex-start; justify-content: center; }
+.workspace-page .auth-screen[hidden] { display: none; }
 .workspace-page .auth-card { border-radius: 20px; width: min(1080px,100%); margin-block: auto; flex-shrink: 0; box-shadow: 0 24px 80px rgb(29 44 61 / .08); }
+.workspace-page .auth-loading-card { width: min(500px,100%); margin-block: auto; padding: 48px 36px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); text-align: center; display: grid; justify-items: center; gap: 20px; }
+.workspace-page .auth-loading-card h1 { margin: 0; font-size: clamp(26px,4vw,34px); line-height: 1.15; font-weight: 500; letter-spacing: -.04em; }
+.workspace-page .auth-loading-card p { margin: 0; }
+.workspace-page .auth-loading-card [role="status"] { color: var(--ink-muted); font-size: 15px; line-height: 1.6; }
+.workspace-page .auth-loading-spinner { width: 46px; height: 46px; margin: 8px 0; border: 3px solid var(--surface-deep); border-top-color: var(--brand); border-radius: 50%; animation: auth-spin 1s linear infinite; }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .workspace-page .auth-loading-spinner { animation: none; } }
 .workspace-page .auth-main { padding: 48px; gap: 20px; }
 .workspace-page .auth-main h1 { font-size: clamp(28px,3vw,36px); font-weight: 500; line-height: 1.12; }
 .workspace-page .auth-lead, .workspace-page .auth-small, .workspace-page .auth-switch { font-size: 14px; line-height: 1.7; }

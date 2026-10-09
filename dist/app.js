@@ -1509,8 +1509,8 @@ async function boot(preferredWorkspace) {
     document.body.classList.add("app-loading");
     try {
       const session = await PliegoCloud.currentSession();
-      if (!session) { PliegoAuthUI.show("login", PliegoAuthUI.linkErrorFromUrl()); return; }
-      if (/type=recovery/.test(globalThis.PLIEGO_INITIAL_HASH || "")) { globalThis.PLIEGO_INITIAL_HASH = ""; PliegoAuthUI.show("recovery"); return; }
+      if (!session) { PliegoAuthUI.show("login", PliegoAuthUI.linkErrorFromUrl()); return false; }
+      if (/type=recovery/.test(globalThis.PLIEGO_INITIAL_HASH || "")) { globalThis.PLIEGO_INITIAL_HASH = ""; PliegoAuthUI.show("recovery"); return false; }
       await PliegoFeatures.acceptInvitationFromUrl();
       await PliegoCloud.loadWorkspaces();
       const ws = PliegoCloud.chooseWorkspace(preferredWorkspace);
@@ -1526,14 +1526,16 @@ async function boot(preferredWorkspace) {
       document.body.classList.toggle("read-only", !PliegoCloud.can("editor"));
       if (PliegoCloud.demo) showDemoBanner();
       setSaveStatus("idle");
-      PliegoAuthUI.hide();
-      openDocumentFromHash();
       render();
+      openDocumentFromHash();
+      if (!PliegoAuthUI.isLoading()) PliegoAuthUI.hide();
+      return true;
     } catch (error) {
-      if (error.kind === "session") { PliegoAuthUI.show("expired"); return; }
+      if (error.kind === "session") { PliegoAuthUI.show("expired"); return false; }
       PliegoCloud.reportClientError(error.message, "boot");
       showToast(error.message || "No se pudo cargar el espacio.");
       setSaveStatus("error", error.message);
+      return false;
     } finally { document.body.classList.remove("app-loading"); booting = null; }
   })();
   return booting;

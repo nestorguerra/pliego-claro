@@ -1,4 +1,4 @@
-/* Pantallas de acceso. La sesión la valida Supabase Auth en el servidor. */
+/* Acceso simulado en demo; las cuentas reales usan Supabase Auth. */
 (() => {
   const html = (value = "") => String(value ?? "").replace(/[&<>'"`]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;", "`": "&#96;" }[char]));
   let root = null;
@@ -6,6 +6,7 @@
   let mode = "login";
   let notice = "";
   let lastEmail = "";
+  let loading = false;
 
   function ensureRoot() {
     if (root) return root;
@@ -51,36 +52,47 @@
 
   function render() {
     const element = ensureRoot();
+    loading = false;
+    element.removeAttribute("aria-busy");
     element.hidden = false;
     document.body.classList.add("auth-open");
     const shell = document.querySelector(".app-shell");
     if (shell) { shell.inert = true; shell.setAttribute("aria-hidden", "true"); }
     element.innerHTML = `<div class="auth-card"><div class="auth-main">${brand}${view()}<nav class="auth-nav" aria-label="LicitIA y blog"><a href="web/">Conocer LicitIA</a><a href="https://room-137.astral-box-9497.chatgpt.site/">Blog Room 137</a></nav></div>${aside}</div>`;
-    element.querySelector("[data-demo-enter]")?.addEventListener("click", async (event) => {
-      if (!globalThis.PliegoDemo?.active) return;
-      const button = event.currentTarget;
-      button.disabled = true;
-      button.textContent = "Abriendo el espacio…";
-      try {
-        await PliegoCloud.signIn("demo@licitia.invalid", "DemoLocal2026");
-        hide();
-        await onAuthenticated();
-      } catch (error) {
-        if (button.isConnected) {
-          element.querySelector("[data-demo-error]").textContent = error.message || "No se pudo abrir la demostración.";
-          button.disabled = false;
-          button.textContent = "Abrir la demostración";
-        }
-      }
-    });
+    element.querySelector("[data-demo-enter]")?.addEventListener("click", () => { if (globalThis.PliegoDemo?.active) enterDemo(); });
     element.querySelectorAll("[data-auth-mode]").forEach((button) => button.addEventListener("click", () => { mode = button.dataset.authMode; notice = ""; render(); }));
     element.querySelectorAll("[data-auth-privacy]").forEach((link) => link.addEventListener("click", (event) => { event.preventDefault(); globalThis.PliegoFeatures?.showPrivacy(); }));
     element.querySelectorAll("form[data-auth]").forEach((form) => form.addEventListener("submit", (event) => submit(event, form)));
     (element.querySelector("input:not([type=hidden])") || element.querySelector("[data-demo-enter]"))?.focus();
   }
 
+  async function enterDemo() {
+    if (loading) return;
+    loading = true;
+    const element = ensureRoot();
+    element.hidden = false;
+    element.setAttribute("aria-busy", "true");
+    element.innerHTML = `<section class="auth-loading-card">${brand}<span class="auth-loading-spinner" aria-hidden="true"></span><p class="eyebrow">PILOTO INTERACTIVO</p><h1 id="authTitle" tabindex="-1">Preparando tu espacio.</h1><p role="status">Estamos cargando los expedientes y tu mesa de trabajo.</p><p class="auth-small">Datos de demostración · Guardado local</p></section>`;
+    element.querySelector("#authTitle")?.focus();
+    const minimumWait = new Promise((resolve) => setTimeout(resolve, 7000));
+    try {
+      await Promise.all([minimumWait, (async () => {
+        await PliegoCloud.signIn("demo@licitia.invalid", "DemoLocal2026");
+        const ready = await onAuthenticated();
+        if (ready === false) throw new Error("No se pudo cargar el espacio. Vuelve a intentarlo.");
+      })()]);
+      hide();
+      const heading = document.querySelector("main h1");
+      if (heading) { heading.setAttribute("tabindex", "-1"); heading.focus({ preventScroll: true }); }
+    } catch (error) {
+      show("login");
+      root.querySelector("[data-auth-error]").textContent = error.message || "No se pudo abrir la demostración. Vuelve a intentarlo.";
+    }
+  }
+
   async function submit(event, form) {
     event.preventDefault();
+    if (loading) return;
     const errorBox = form.querySelector("[data-auth-error]");
     const button = form.querySelector("button[type=submit]");
     const data = Object.fromEntries(new FormData(form));
@@ -95,9 +107,7 @@
         if (!globalThis.PliegoDemo?.active) throw new Error("El acceso de demostración no está disponible.");
         if (!String(data.email || "").trim()) throw new Error("Escribe cualquier usuario para entrar en la demo.");
         if (!String(data.password || "").length) throw new Error("Escribe cualquier contraseña para entrar en la demo.");
-        await PliegoCloud.signIn("demo@licitia.invalid", "DemoLocal2026");
-        hide();
-        await onAuthenticated();
+        await enterDemo();
       } else if (kind === "login") {
         await PliegoCloud.signIn(String(data.email || ""), String(data.password || ""));
         hide();
@@ -129,7 +139,8 @@
 
   function show(nextMode = "login", message = "") { mode = nextMode; notice = message; render(); }
   function hide() {
-    if (root) { root.hidden = true; root.innerHTML = ""; }
+    loading = false;
+    if (root) { root.hidden = true; root.innerHTML = ""; root.removeAttribute("aria-busy"); }
     document.body.classList.remove("auth-open");
     const shell = document.querySelector(".app-shell");
     if (shell) { shell.inert = false; shell.removeAttribute("aria-hidden"); }
@@ -149,6 +160,6 @@
 
   globalThis.PliegoAuthUI = Object.freeze({
     init(handler) { onAuthenticated = handler; },
-    show, hide, isOpen, linkErrorFromUrl
+    show, hide, isOpen, isLoading: () => loading, linkErrorFromUrl
   });
 })();
