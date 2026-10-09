@@ -83,8 +83,8 @@
   }
   async function tenderStats() {
     const { meta, tenders } = await dataset();
-    const lastOk = new Date(Date.now() - 11 * 60000).toISOString();
-    return { total: tenders.length, vigentes: tenders.filter((t) => t.status_code === "PUB" && t.deadline_at && Date.parse(t.deadline_at) >= Date.now()).length, lastRun: { status: "ok", finished_at: lastOk, pages: 2, entries: meta.total }, lastOk };
+    const lastOk = meta.generadoEl || null;
+    return { demo: true, total: tenders.length, vigentes: tenders.filter((t) => t.status_code === "PUB" && t.deadline_at && Date.parse(t.deadline_at) >= Date.now()).length, lastRun: null, lastOk };
   }
 
   // ------------------------------------------------------------ consultas tipo PostgREST sobre tablas locales

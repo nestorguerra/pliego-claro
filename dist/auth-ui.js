@@ -18,14 +18,15 @@
     return root;
   }
 
-  const brand = `<div class="auth-brand"><img class="brand-logo" src="brand-logo.svg" width="36" height="36" alt="" aria-hidden="true" /><strong class="brand-name">Licit<span>IA</span></strong></div>`;
-  const aside = `<aside class="auth-aside"><p class="eyebrow">LICITACIONES PÚBLICAS</p><h2>Decide qué licitaciones merecen tu tiempo y prepara las que sí.</h2><ul><li>Licitaciones oficiales de la Plataforma de Contratación del Sector Público.</li><li>Pliegos archivados con su huella, citas a página y versiones.</li><li>Requisitos, evidencias de tu empresa y decisión GO / REVISAR / NO-GO razonada.</li><li>Avisos cuando cambia el expediente oficial.</li></ul><p class="auth-small">La decisión y la presentación siguen siendo humanas. <a href="#privacidad" data-auth-privacy>Privacidad y proveedores</a></p></aside>`;
+  const brand = `<a class="auth-brand brand" href="web/" aria-label="LicitIA, web principal"><img class="brand-logo" src="brand-logo.svg" width="36" height="36" alt="" aria-hidden="true" /><strong class="brand-name">Licit<span>IA</span></strong></a>`;
+  const aside = `<aside class="auth-aside"><p class="eyebrow">LICITACIONES PÚBLICAS</p><h2>Decide qué licitaciones merecen tu tiempo y prepara las que sí.</h2><ul><li>${globalThis.PliegoDemo?.active ? "Muestra fija de licitaciones oficiales de PLACSP." : "Licitaciones oficiales de la Plataforma de Contratación del Sector Público."}</li><li>Pliegos archivados con su huella, citas a página y versiones.</li><li>Requisitos, evidencias de tu empresa y decisión GO / REVISAR / NO-GO razonada.</li><li>${globalThis.PliegoDemo?.active ? "Recorrido de seguimiento con avisos de ejemplo." : "Avisos cuando cambia el expediente oficial."}</li></ul><p class="auth-small">La decisión y la presentación siguen siendo humanas. <a href="#privacidad" data-auth-privacy>Privacidad y proveedores</a></p></aside>`;
 
   function field(label, name, type = "text", extra = "") {
     return `<label class="field"><span>${label}</span><input name="${name}" type="${type}" ${extra} /></label>`;
   }
 
   function view() {
+    if (globalThis.PliegoDemo?.active && ["login", "config", "expired"].includes(mode)) return `<p class="eyebrow">PILOTO INTERACTIVO</p><h1 id="authTitle">Conoce tu próxima mesa de trabajo.</h1><p class="auth-lead">Explora oportunidades, documentos, requisitos y decisiones con un espacio de ejemplo. Puedes probarlo sin crear una cuenta.</p><button class="button button-dark auth-submit" data-demo-enter type="button">Abrir la demostración</button><p class="editor-error" data-demo-error role="alert"></p><p class="auth-small">El trabajo se guarda solo en este navegador. La IA y las acciones de equipo son simuladas; no se envían correos ni se presenta ninguna oferta. Usa datos de prueba.</p>`;
     if (mode === "config") return `<h1 id="authTitle">Servicio en preparación</h1><p class="auth-lead">El servidor de cuentas todavía no está conectado: aún no se pueden crear cuentas ni guardar trabajo en la nube.</p>
       <p class="auth-lead">Mientras tanto puedes <strong>probar la demostración</strong>: busca licitaciones reales publicadas hoy en PLACSP, crea expedientes y trabaja requisitos, decisión, tareas, costes y exportaciones. Los datos se guardan solo en este navegador.</p>
       <button class="button button-dark auth-submit" data-demo-enter type="button">Probar la demostración</button>
@@ -52,11 +53,30 @@
     const element = ensureRoot();
     element.hidden = false;
     document.body.classList.add("auth-open");
-    element.innerHTML = `<div class="auth-card"><div class="auth-main">${brand}${view()}</div>${aside}</div>`;
+    const shell = document.querySelector(".app-shell");
+    if (shell) { shell.inert = true; shell.setAttribute("aria-hidden", "true"); }
+    element.innerHTML = `<div class="auth-card"><div class="auth-main">${brand}${view()}<nav class="auth-nav" aria-label="LicitIA y blog"><a href="web/">Conocer LicitIA</a><a href="https://room-137.astral-box-9497.chatgpt.site/">Blog Room 137</a></nav></div>${aside}</div>`;
+    element.querySelector("[data-demo-enter]")?.addEventListener("click", async (event) => {
+      if (!globalThis.PliegoDemo?.active) return;
+      const button = event.currentTarget;
+      button.disabled = true;
+      button.textContent = "Abriendo el espacio…";
+      try {
+        await PliegoCloud.signIn("demo@licitia.invalid", "DemoLocal2026");
+        hide();
+        await onAuthenticated();
+      } catch (error) {
+        if (button.isConnected) {
+          element.querySelector("[data-demo-error]").textContent = error.message || "No se pudo abrir la demostración.";
+          button.disabled = false;
+          button.textContent = "Abrir la demostración";
+        }
+      }
+    });
     element.querySelectorAll("[data-auth-mode]").forEach((button) => button.addEventListener("click", () => { mode = button.dataset.authMode; notice = ""; render(); }));
     element.querySelectorAll("[data-auth-privacy]").forEach((link) => link.addEventListener("click", (event) => { event.preventDefault(); globalThis.PliegoFeatures?.showPrivacy(); }));
     element.querySelectorAll("form[data-auth]").forEach((form) => form.addEventListener("submit", (event) => submit(event, form)));
-    element.querySelector("input:not([type=hidden])")?.focus();
+    (element.querySelector("input:not([type=hidden])") || element.querySelector("[data-demo-enter]"))?.focus();
   }
 
   async function submit(event, form) {
@@ -101,7 +121,12 @@
   }
 
   function show(nextMode = "login", message = "") { mode = nextMode; notice = message; render(); }
-  function hide() { if (root) { root.hidden = true; root.innerHTML = ""; } document.body.classList.remove("auth-open"); }
+  function hide() {
+    if (root) { root.hidden = true; root.innerHTML = ""; }
+    document.body.classList.remove("auth-open");
+    const shell = document.querySelector(".app-shell");
+    if (shell) { shell.inert = false; shell.removeAttribute("aria-hidden"); }
+  }
   function isOpen() { return Boolean(root && !root.hidden); }
 
   // Errores devueltos por enlaces de correo (caducado o ya usado) llegan en el fragmento de la URL.

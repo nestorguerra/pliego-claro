@@ -1,4 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="16" fill="#142523"/>
-  <path d="M19 43V28h7v15h-7Zm10 0V19h7v24h-7Zm10 0V11h7v32h-7Z" fill="#d7ef72" transform="skew(-10 0)"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="LicitIA"><rect width="64" height="64" rx="14" fill="#1d2c3d"/><rect x="13" y="12" width="38" height="40" rx="5" fill="none" stroke="#e9e4da" stroke-width="2"/><path d="M24 21v23h19v-7H32V21z" fill="#faf9f6"/></svg>

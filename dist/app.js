@@ -237,7 +237,7 @@ function setSaveStatus(kind, detail = "") {
   if (!status) return;
   window.clearTimeout(setSaveStatus.timer);
   status.dataset.state = kind;
-  status.textContent = kind === "saving" ? "Guardando…" : kind === "saved" ? `${PliegoCloud.demo ? "Guardado en este navegador" : "Guardado en el servidor"} · ${new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit" }).format(new Date())}` : kind === "error" ? "Error: no guardado" : kind === "offline" ? "Sin conexión" : "Conectado";
+  status.textContent = kind === "saving" ? "Guardando…" : kind === "saved" ? `${PliegoCloud.demo ? "Guardado en este navegador" : "Guardado en el servidor"} · ${new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit" }).format(new Date())}` : kind === "error" ? "Error: no guardado" : kind === "offline" ? "Sin conexión" : (PliegoCloud.demo ? "Guardado local" : "Conectado");
   status.title = detail;
 }
 
@@ -699,7 +699,7 @@ function renderDetail() {
       ${PliegoFeatures.followMarkup(item)}
     </div>`;
   const historyView = `
-    <div class="history-view"><div class="view-heading"><div><p class="detail-section-title">Trazabilidad</p><h3>Historial del expediente</h3></div><span class="example-label">Guardado en el servidor</span></div>
+    <div class="history-view"><div class="view-heading"><div><p class="detail-section-title">Trazabilidad</p><h3>Historial del expediente</h3></div><span class="example-label">${PliegoCloud.demo ? "Guardado local" : "Guardado en el servidor"}</span></div>
       <div class="timeline">${(item.history || [{ label: "Oportunidad añadida como ejemplo", detail: "La fuente oficial todavía debe contrastarse.", at: new Date().toISOString() }]).map((event) => `<div class="timeline-item"><span>${escapeHtml(formatDate(new Date(event.at)))}</span><div><strong>${escapeHtml(event.label)}</strong><p>${escapeHtml(event.detail)}</p></div></div>`).join("")}</div>
     </div>`;
   const tabViews = { summary: summaryView, requirements: requirementsView, documents: documentsView, decision: decisionView, economic: economicView, offer: offerView, tasks: tasksView, changes: changesView, history: historyView };
@@ -906,11 +906,11 @@ function renderSettingsMarkup() {
       <div>
         <p class="eyebrow">Espacio de trabajo · Ajustes</p>
         <h1>Ajustes de la aplicación</h1>
-        <p class="route-intro">Cuenta, espacio de trabajo, reglas y copias. Los cambios se guardan en el servidor para todo el espacio.</p>
+        <p class="route-intro">${PliegoCloud.demo ? "Demostración, reglas y copias. Los cambios se guardan solo en este navegador." : "Cuenta, espacio de trabajo, reglas y copias. Los cambios se guardan en el servidor para todo el espacio."}</p>
       </div>
-      <div class="settings-header-actions"><span class="settings-badge"><i></i> Guardado en el servidor</span><span class="settings-badge settings-badge-muted">Fuente oficial: PLACSP</span></div>
+      <div class="settings-header-actions"><span class="settings-badge"><i></i> ${PliegoCloud.demo ? "Guardado en este navegador" : "Guardado en el servidor"}</span><span class="settings-badge settings-badge-muted">Fuente oficial: PLACSP</span></div>
     </div>
-    <div class="settings-notice"><span class="settings-notice-icon">◆</span><div><strong>Control de datos</strong><p>En este MVP no se sincronizan expedientes ni se envían pliegos a terceros. Las conexiones oficiales, cuentas de usuario y notificaciones nativas quedan pendientes de una próxima iteración.</p></div></div>
+    <div class="settings-notice"><span class="settings-notice-icon">◆</span><div><strong>Control de datos</strong><p>${PliegoCloud.demo ? "En esta demostración los expedientes se guardan solo en este navegador. La IA, el equipo y los correos son simulados. Exporta una copia para conservar el trabajo." : "El trabajo se guarda en el espacio de tu equipo. Consulta Privacidad y proveedores antes de añadir documentación y revisa los permisos de acceso."}</p></div></div>
     <div class="settings-shell">
       <aside class="settings-nav" aria-label="Secciones de ajustes">
         <span>Secciones de ajuste</span>
@@ -931,7 +931,7 @@ function renderSettingsMarkup() {
           <div class="settings-field-grid">
             <label class="settings-field"><span>Nombre visible</span><input data-setting="workspaceName" type="text" value="${escapeAttribute(settings.workspaceName)}" placeholder="Ej. Mi empresa" /></label>
             <label class="settings-field"><span>Zona horaria de referencia</span><select data-setting="timezone"><option value="Europe/Madrid" ${settings.timezone === "Europe/Madrid" ? "selected" : ""}>Europe/Madrid</option><option value="UTC" ${settings.timezone === "UTC" ? "selected" : ""}>UTC</option></select></label>
-            <div class="settings-readonly"><span>Estado del entorno</span><strong><i></i> Piloto con cuentas · datos en servidor</strong><small>Las licitaciones se leen de PLACSP; contrasta siempre con el expediente oficial.</small></div>
+            <div class="settings-readonly"><span>Estado del entorno</span><strong><i></i> ${PliegoCloud.demo ? "Demostración · datos locales" : "Piloto con cuentas · datos en servidor"}</strong><small>Las licitaciones se leen de PLACSP; contrasta siempre con el expediente oficial.</small></div>
           </div>
         </section>
 
@@ -967,7 +967,7 @@ function renderSettingsMarkup() {
 
         <section class="settings-section" id="ajuste-datos">
           <div class="settings-section-heading"><div><span class="settings-kicker">06 · SOBERANÍA</span><h2>Datos y resguardo</h2><p>Exporta o importa una copia antes de probar cambios importantes. El tamaño mostrado es orientativo del almacenamiento de esta prueba.</p></div><span class="settings-section-icon">□</span></div>
-          <div class="settings-storage"><div><strong>Datos del espacio en el servidor</strong><span>${storageBytes} bytes de expedientes, ajustes y equipo · los PDF se guardan aparte con su huella</span></div></div>
+          <div class="settings-storage"><div><strong>${PliegoCloud.demo ? "Datos del espacio en este navegador" : "Datos del espacio en el servidor"}</strong><span>${storageBytes} bytes de expedientes, ajustes y equipo · los PDF se guardan aparte con su huella</span></div></div>
           <div class="settings-action-grid"><button class="settings-action" data-export-local type="button"><strong>↓ Exportar datos (JSON)</strong><span> expedientes, ajustes, equipo, notas, texto extraído, análisis, comentarios, avisos y lista de originales. No incluye los archivos.</span></button><button class="settings-action" data-export-full type="button"><strong>↓ Copia completa (.zip)</strong><span> todo lo anterior más los originales con su huella SHA-256 verificada; se restaura aquí mismo</span></button><label class="settings-action"><strong>↑ Traer copia de la beta o de otro espacio</strong><span> vista previa, duplicados y confirmación; todo o nada, sin borrar lo existente</span><input data-import-local type="file" accept="application/json,.json,application/zip,.zip" hidden /></label><button class="settings-action" data-settings-defaults type="button"><strong>↺ Restaurar ajustes</strong><span> volver a los valores del MVP</span></button></div>
         </section>
 
@@ -1068,7 +1068,7 @@ function renderRoute() {
     buscar: {
       eyebrow: "Oportunidades · Fuente oficial",
       title: "Buscar en PLACSP",
-      intro: "Licitaciones reales de la Plataforma de Contratación del Sector Público, actualizadas automáticamente. Crea un expediente para archivar sus pliegos y vigilar cambios.",
+      intro: PliegoCloud.demo ? "Explora una muestra fija de licitaciones reales de PLACSP. No se actualiza automáticamente. Contrasta documentos y plazos con el expediente oficial." : "Licitaciones reales de la Plataforma de Contratación del Sector Público, actualizadas automáticamente. Crea un expediente para archivar sus pliegos y vigilar cambios.",
       body: ""
     },
     privacidad: {
@@ -1540,7 +1540,12 @@ async function boot(preferredWorkspace) {
 }
 
 function showDemoBanner() {
-  // Etiqueta discreta: el entorno funciona en este navegador, sin servidor conectado.
+  if (!document.querySelector(".demo-banner")) {
+    const banner = document.createElement("div");
+    banner.className = "demo-banner";
+    banner.innerHTML = '<strong>Demostración · guardado local.</strong><span>IA, equipo y correos simulados. Usa datos de prueba.</span><a href="web/privacidad.html">Datos y privacidad</a>';
+    document.body.insertBefore(banner, document.querySelector(".app-shell"));
+  }
   const stamp = document.querySelector(".release-stamp");
   if (stamp) { stamp.textContent = "Entorno de demostración"; stamp.title = "Datos guardados en este navegador. Licitaciones reales de PLACSP (muestra del 8 oct 2026)."; }
 }

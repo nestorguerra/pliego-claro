@@ -1,0 +1,57 @@
+/* Identidad compartida con Room 137: Manrope, marfil y azul pizarra. */
+@font-face { font-family: Manrope; font-style: normal; font-weight: 400 800; font-display: swap; src: url('fonts/manrope-latin.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: Manrope; font-style: normal; font-weight: 400 800; font-display: swap; src: url('fonts/manrope-latin-ext.woff2') format('woff2'); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C4,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+:root {
+  --canvas: #faf9f6; --surface: #fff; --surface-subtle: #f0efeb; --surface-deep: #e9e4da;
+  --ink: #22262d; --ink-soft: #525c69; --ink-muted: #626a76;
+  --brand: #344967; --brand-dark: #1d2c3d; --lime: #e9e4da;
+  --line: #d8d8d5; --line-soft: #e5e4e0;
+  --go: #27634b; --go-bg: #edf5f0; --review: #855713; --review-bg: #faf3e5;
+  --no-go: #963e3e; --no-go-bg: #faeeee;
+  --shadow: 0 8px 28px rgb(29 44 61 / .06);
+  font-family: Manrope, Arial, sans-serif; font-synthesis: none; color: var(--ink); background: var(--canvas);
+}
+button, input, select, textarea { font: inherit; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid var(--brand); outline-offset: 5px; }
+.brand-logo { box-shadow: none; border-radius: 8px; }
+.brand-name { font-family: Manrope, Arial, sans-serif; letter-spacing: -.055em; font-weight: 800; }
+.brand-name span { color: var(--brand); }
+.workspace-page .nav-item { min-height: 42px; font-size: 13px; }
+.workspace-page .nav-heading { font-size: 11px; }
+.workspace-page .nav-count { color: var(--brand-dark); }
+.workspace-page .workspace-utilities { gap: 12px; }
+.workspace-page .ecosystem-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.workspace-page .ecosystem-links a { font-size: 12px; color: var(--brand); text-underline-offset: 4px; }
+.workspace-page .global-search input, .workspace-page .button { font-size: 12px; }
+.workspace-page .button { min-height: 40px; }
+.workspace-page .intro-copy { font-size: 15px; line-height: 1.65; }
+.workspace-page .metric-primary .metric-label, .workspace-page .metric-primary .metric-foot { color: #dce3ed; }
+.workspace-page .metric-label, .workspace-page .metric-foot, .workspace-page .card-meta, .workspace-page .card-organization { font-size: 12px; }
+.workspace-page .opportunity-card h3 { font-size: 15px; }
+.workspace-page .detail-panel::before, .workspace-page .detail-panel::after { display: none; }
+.workspace-page .auth-screen { padding: 24px; }
+.workspace-page .auth-card { border-radius: 20px; width: min(1080px,100%); box-shadow: 0 24px 80px rgb(29 44 61 / .08); }
+.workspace-page .auth-main { padding: 48px; gap: 20px; }
+.workspace-page .auth-main h1 { font-size: clamp(28px,3vw,36px); font-weight: 500; line-height: 1.12; }
+.workspace-page .auth-lead, .workspace-page .auth-small, .workspace-page .auth-switch { font-size: 14px; line-height: 1.7; }
+.workspace-page .auth-submit { min-height: 48px; font-size: 14px; }
+.workspace-page .auth-aside { background: linear-gradient(125deg,#151c25,#344456); color: #faf9f6; padding: 48px; gap: 24px; }
+.workspace-page .auth-aside h2 { font-size: clamp(27px,3vw,38px); font-weight: 500; line-height: 1.16; letter-spacing: -.05em; }
+.workspace-page .auth-aside ul { font-size: 14px; gap: 12px; line-height: 1.7; }
+.workspace-page .auth-aside .auth-small { color: #dce3ed; }
+.workspace-page .auth-nav { display: flex; flex-wrap: wrap; gap: 18px; }
+.workspace-page .auth-nav a { font-size: 13px; color: var(--brand); text-underline-offset: 4px; }
+.workspace-page .field span { font-size: 12px; }
+.workspace-page .field input { font-size: 14px; min-height: 44px; }
+.workspace-page .demo-banner { color: var(--brand-dark); background: var(--surface-deep); }
+.workspace-page .economic-note, .workspace-page .approval-banner, .workspace-page .settings-inline-note { background: var(--surface-subtle); }
+.workspace-page .settings-notice, .workspace-page .settings-notice-icon { background: var(--surface-subtle); border-color: var(--line); }
+.workspace-page .settings-toggle:hover { background: var(--surface-subtle); }
+.workspace-page .map-stage { background: var(--canvas); }
+.workspace-page .spain-outline, .workspace-page .island-shape { fill: #e3e7ec; }
+.workspace-page .spain-relief { stroke: #cad2dd; }
+@media(max-width:700px) { .workspace-page .auth-main, .workspace-page .auth-aside { padding: 28px; } .workspace-page .auth-screen { padding: 12px; } }
+@media(prefers-reduced-motion:reduce) { html { scroll-behavior: auto !important; } *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+@media(max-width:800px){.workspace-page .workspace-utilities{flex-wrap:wrap}.workspace-page .ecosystem-links{margin-top:0}}
+@media(max-width:580px){.workspace-page .nav-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;overflow:visible}.workspace-page .nav-item{justify-content:center;text-align:center;white-space:normal;min-height:44px;padding:6px;font-size:12px}.workspace-page .nav-item.active{padding-left:6px;border-left:0;border-bottom:2px solid var(--brand)}}
+.workspace-page .demo-banner{position:relative;line-height:1.6;gap:4px 14px;padding:10px 16px;font-size:12px;border-bottom:1px solid var(--line)}.workspace-page .demo-banner a{margin-left:auto;font-weight:600;text-underline-offset:3px}

@@ -18,7 +18,7 @@
   --no-go: #9c2a2a;
   --no-go-bg: #fdeeee;
   --shadow: 0 8px 24px rgba(20, 37, 35, .08), 0 2px 6px rgba(20, 37, 35, .04);
-  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--ink);
   background: var(--canvas);
   font-synthesis: none;
@@ -73,7 +73,7 @@ h1, h2, h3, p { margin-top: 0; }
 .global-search span { font-size: 17px; line-height: 1; }
 .global-search input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 11px; }
 .global-search input::placeholder { color: var(--ink-muted); }
-.global-search kbd { padding: 2px 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 3px; color: var(--ink-muted); font: 10px "JetBrains Mono", monospace; white-space: nowrap; }
+.global-search kbd { padding: 2px 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 3px; color: var(--ink-muted); font: 10px "Manrope", monospace; white-space: nowrap; }
 .save-status { color: var(--ink-muted); font-size: 10px; white-space: nowrap; }
 .avatar { width: 29px; height: 29px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--surface); font-size: 10px; font-weight: 700; }
 .button { border: 0; border-radius: 6px; min-height: 36px; padding: 0 12px; font-size: 11px; font-weight: 700; transition: background .15s ease, border .15s ease; }
@@ -103,8 +103,8 @@ h1 { font-size: clamp(29px, 3.4vw, 40px); font-weight: 700; letter-spacing: -.05
 .metric-card.metric-primary { background: var(--brand); color: var(--surface); border-color: var(--brand); }
 .metric-label { display: block; font-size: 10px; color: var(--ink-muted); margin-bottom: 10px; }
 .metric-primary .metric-label { color: #c2ddd2; }
-.metric-card strong { display: block; font: 600 25px/1 "JetBrains Mono", monospace; letter-spacing: -.06em; }
-.metric-date strong { font: 700 17px/1.2 "Plus Jakarta Sans", sans-serif; padding-top: 3px; }
+.metric-card strong { display: block; font: 600 25px/1 "Manrope", monospace; letter-spacing: -.06em; }
+.metric-date strong { font: 700 17px/1.2 "Manrope", sans-serif; padding-top: 3px; }
 .metric-foot { display: block; color: var(--ink-muted); font-size: 9px; margin-top: 8px; }
 .metric-primary .metric-foot { color: #c2ddd2; }
 
@@ -155,7 +155,7 @@ h1 { font-size: clamp(29px, 3.4vw, 40px); font-weight: 700; letter-spacing: -.05
 .detail-eyebrow { color: var(--brand); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .detail-content h2 { font-size: clamp(18px, 2.3vw, 26px); font-weight: 700; line-height: 1.15; letter-spacing: -.045em; margin: 6px 0 7px; max-width: 630px; }
 .detail-organization { color: var(--ink-soft); font-size: 10px; margin: 0; }
-.mono { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+.mono { font-family: "Manrope", monospace; font-variant-numeric: tabular-nums; }
 .detail-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); padding: 12px 0; margin-bottom: 13px; }
 .detail-summary span, .summary-cell span { display: block; color: var(--ink-muted); font-size: 9px; margin-bottom: 5px; }
 .detail-summary strong { font-size: 11px; font-weight: 700; }
@@ -182,7 +182,7 @@ h1 { font-size: clamp(29px, 3.4vw, 40px); font-weight: 700; letter-spacing: -.05
 .requirement-groups { display: grid; gap: 8px; }
 .requirement-group { border: 1px solid var(--line-soft); border-radius: 5px; overflow: hidden; }
 .group-heading { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: var(--surface-subtle); font-size: 10px; }
-.group-heading span { color: var(--ink-muted); font: 10px "JetBrains Mono", monospace; }
+.group-heading span { color: var(--ink-muted); font: 10px "Manrope", monospace; }
 .requirements { display: grid; gap: 0; }
 .requirement { display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: start; padding: 9px 10px; border-top: 1px solid var(--line-soft); }
 .requirement-check { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--line); color: var(--ink); background: var(--surface); display: grid; place-items: center; font-size: 10px; margin-top: 1px; padding: 0; }
@@ -203,7 +203,7 @@ h1 { font-size: clamp(29px, 3.4vw, 40px); font-weight: 700; letter-spacing: -.05
 .source-link-muted { color: var(--ink-muted); border-bottom-color: var(--line); }
 .document-list, .task-list { display: grid; gap: 7px; }
 .document-row, .task-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line-soft); border-radius: 5px; padding: 10px; }
-.document-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 4px; color: var(--brand); background: var(--surface-subtle); font: 700 8px "JetBrains Mono", monospace; }
+.document-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 4px; color: var(--brand); background: var(--surface-subtle); font: 700 8px "Manrope", monospace; }
 .document-row > div, .task-row > div { display: grid; gap: 3px; min-width: 0; flex: 1; }
 .document-row strong, .task-row strong { font-size: 10px; line-height: 1.35; }
 .document-row span:not(.document-icon), .task-row div span { color: var(--ink-muted); font-size: 9px; }
@@ -344,7 +344,7 @@ h1 { font-size: clamp(29px, 3.4vw, 40px); font-weight: 700; letter-spacing: -.05
 .radar-marker { cursor: pointer; outline: none; }
 .radar-marker > circle:first-child { fill: var(--brand); stroke: var(--surface); stroke-width: 3; transition: r .15s ease, fill .15s ease; }
 .radar-marker-core { fill: var(--lime); pointer-events: none; }
-.radar-marker text { fill: var(--ink-soft); font: 700 8px "Plus Jakarta Sans", sans-serif; pointer-events: none; }
+.radar-marker text { fill: var(--ink-soft); font: 700 8px "Manrope", sans-serif; pointer-events: none; }
 .radar-marker:hover > circle:first-child, .radar-marker:focus > circle:first-child, .radar-marker.is-selected > circle:first-child { fill: var(--review); }
 .radar-marker.is-selected text { fill: var(--ink); }
 .map-legend { display: flex; flex-wrap: wrap; gap: 11px; margin-top: -2px; color: var(--ink-muted); font-size: 9px; }
@@ -359,7 +359,7 @@ h1 { font-size: clamp(29px, 3.4vw, 40px); font-weight: 700; letter-spacing: -.05
 .radar-side-card a { color: var(--brand); font-size: 10px; font-weight: 700; text-decoration: none; }
 .radar-count-list { display: grid; gap: 6px; }
 .radar-count-list > div { display: flex; justify-content: space-between; gap: 10px; padding-top: 6px; border-top: 1px solid var(--line-soft); color: var(--ink-muted); font-size: 9px; }
-.radar-count-list b { color: var(--ink); font: 700 12px "JetBrains Mono", monospace; }
+.radar-count-list b { color: var(--ink); font: 700 12px "Manrope", monospace; }
 .radar-opportunities { max-width: 900px; }
 .radar-opportunity-list { display: grid; gap: 6px; }
 .radar-opportunity { display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; align-items: center; gap: 12px; padding: 11px 13px; border: 1px solid var(--line-soft); border-left: 3px solid var(--line); border-radius: 5px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; }
@@ -374,7 +374,7 @@ h1 { font-size: clamp(29px, 3.4vw, 40px); font-weight: 700; letter-spacing: -.05
 .radar-note p { margin: 5px 0 0; color: var(--ink-soft); font-size: 10px; line-height: 1.45; }
 .team-summary { display: flex; gap: 9px; margin-top: 5px; }
 .team-summary > div { display: grid; gap: 3px; min-width: 100px; padding: 9px; border: 1px solid var(--line-soft); border-radius: 5px; background: var(--surface-subtle); }
-.team-summary b { font: 700 18px "JetBrains Mono", monospace; }
+.team-summary b { font: 700 18px "Manrope", monospace; }
 .team-summary span { color: var(--ink-muted); font-size: 9px; }
 .team-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 900px; }
 .team-card { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
@@ -462,7 +462,7 @@ h1 { font-size: clamp(29px, 3.4vw, 40px); font-weight: 700; letter-spacing: -.05
 .settings-storage { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line-soft); border-radius: 5px; background: var(--surface-subtle); }
 .settings-storage > div:first-child { display: flex; justify-content: space-between; gap: 10px; }
 .settings-storage strong { font-size: 10px; }
-.settings-storage span { color: var(--ink-muted); font: 9px "JetBrains Mono", monospace; }
+.settings-storage span { color: var(--ink-muted); font: 9px "Manrope", monospace; }
 .settings-storage-bar { height: 6px; overflow: hidden; border-radius: 999px; background: var(--surface-deep); }
 .settings-storage-bar i { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
 .settings-action-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -742,7 +742,7 @@ body.auth-open { overflow: hidden; }
 .member-row select { min-height: 34px; border: 1px solid var(--line); border-radius: 5px; background: var(--canvas); font: inherit; font-size: 11px; }
 .member-row .text-button { margin-top: 0; font-size: 11px; }
 .invite-link { display: grid; gap: 6px; padding: 12px; border-radius: 8px; background: var(--go-bg); font-size: 11px; margin: 12px 0; }
-.invite-link input { width: 100%; min-height: 36px; border: 1px solid var(--line); border-radius: 5px; padding: 0 8px; font: 11px "JetBrains Mono", monospace; }
+.invite-link input { width: 100%; min-height: 36px; border: 1px solid var(--line); border-radius: 5px; padding: 0 8px; font: 11px "Manrope", monospace; }
 .invite-link .modal-actions { margin-top: 4px; justify-content: flex-start; }
 
 .draft-banner { border: 1px solid #ecd3a4; background: var(--review-bg); margin-bottom: 16px; }
@@ -762,7 +762,7 @@ a.settings-action { text-decoration: none; color: inherit; }
 .page-list { display: grid; gap: 10px; }
 .page-text { border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
 .page-text h4 { margin: 0 0 6px; font-size: 12px; }
-.page-text pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 11px/1.5 "JetBrains Mono", monospace; color: var(--ink-soft); max-height: 340px; overflow: auto; }
+.page-text pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 11px/1.5 "Manrope", monospace; color: var(--ink-soft); max-height: 340px; overflow: auto; }
 
 @media (max-width: 800px) {
   .auth-card { grid-template-columns: 1fr; }
@@ -787,7 +787,7 @@ a.settings-action { text-decoration: none; color: inherit; }
 
 /* Marca LicitIA */
 .brand-logo { width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0; box-shadow: 0 6px 16px rgba(134, 188, 37, .3); }
-.brand-name { font-family: "Sora", "Plus Jakarta Sans", sans-serif; font-weight: 700; font-size: 18px; letter-spacing: -.02em; color: var(--ink); }
+.brand-name { font-family: "Manrope", "Manrope", sans-serif; font-weight: 700; font-size: 18px; letter-spacing: -.02em; color: var(--ink); }
 .brand-name span { color: #0f828f; }
 .auth-brand .brand-logo { width: 36px; height: 36px; border-radius: 11px; }
 .auth-brand .brand-name { font-size: 22px; }
