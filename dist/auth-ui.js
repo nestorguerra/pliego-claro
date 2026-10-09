@@ -26,7 +26,7 @@
   }
 
   function view() {
-    if (globalThis.PliegoDemo?.active && ["login", "config", "expired"].includes(mode)) return `<p class="eyebrow">PILOTO INTERACTIVO</p><h1 id="authTitle">Conoce tu próxima mesa de trabajo.</h1><p class="auth-lead">Explora oportunidades, documentos, requisitos y decisiones con un espacio de ejemplo. Puedes probarlo sin crear una cuenta.</p><button class="button button-dark auth-submit" data-demo-enter type="button">Abrir la demostración</button><p class="editor-error" data-demo-error role="alert"></p><p class="auth-small">El trabajo se guarda solo en este navegador. La IA y las acciones de equipo son simuladas; no se envían correos ni se presenta ninguna oferta. Usa datos de prueba.</p>`;
+    if (globalThis.PliegoDemo?.active && ["login", "config", "expired"].includes(mode)) return `<p class="eyebrow">PILOTO INTERACTIVO</p><h1 id="authTitle">Entrar en LicitIA.</h1><p class="auth-lead">Tu mesa de trabajo para licitaciones públicas. En esta demo puedes entrar con cualquier usuario y contraseña.</p><form data-auth="demo-login" novalidate>${field("Correo o usuario", "email", "text", 'autocomplete="off" required placeholder="Ej. demo"')}${field("Contraseña", "password", "password", 'autocomplete="off" required placeholder="Cualquier contraseña"')}<button class="button button-dark auth-submit" type="submit">Entrar en la demo</button><p class="editor-error" data-auth-error role="alert"></p></form><p class="auth-small">Usa datos ficticios. El usuario y la contraseña de este formulario no se guardan ni se envían. El trabajo se conserva en este navegador; la IA, el equipo y los correos son simulados.</p>`;
     if (mode === "config") return `<h1 id="authTitle">Servicio en preparación</h1><p class="auth-lead">El servidor de cuentas todavía no está conectado: aún no se pueden crear cuentas ni guardar trabajo en la nube.</p>
       <p class="auth-lead">Mientras tanto puedes <strong>probar la demostración</strong>: busca licitaciones reales publicadas hoy en PLACSP, crea expedientes y trabaja requisitos, decisión, tareas, costes y exportaciones. Los datos se guardan solo en este navegador.</p>
       <button class="button button-dark auth-submit" data-demo-enter type="button">Probar la demostración</button>
@@ -84,14 +84,21 @@
     const errorBox = form.querySelector("[data-auth-error]");
     const button = form.querySelector("button[type=submit]");
     const data = Object.fromEntries(new FormData(form));
-    if (data.email) lastEmail = String(data.email).trim();
+    if (data.email && form.dataset.auth !== "demo-login") lastEmail = String(data.email).trim();
     errorBox.textContent = "";
     button.disabled = true;
     const label = button.textContent;
     button.textContent = "Un momento…";
     try {
       const kind = form.dataset.auth;
-      if (kind === "login") {
+      if (kind === "demo-login") {
+        if (!globalThis.PliegoDemo?.active) throw new Error("El acceso de demostración no está disponible.");
+        if (!String(data.email || "").trim()) throw new Error("Escribe cualquier usuario para entrar en la demo.");
+        if (!String(data.password || "").length) throw new Error("Escribe cualquier contraseña para entrar en la demo.");
+        await PliegoCloud.signIn("demo@licitia.invalid", "DemoLocal2026");
+        hide();
+        await onAuthenticated();
+      } else if (kind === "login") {
         await PliegoCloud.signIn(String(data.email || ""), String(data.password || ""));
         hide();
         await onAuthenticated();

@@ -1612,5 +1612,6 @@ PliegoCloud.onAuthChange((event) => {
   if (event === "PASSWORD_RECOVERY") { PliegoAuthUI.show("recovery"); return; }
   if (event === "SIGNED_OUT" && opportunities.length && !PliegoAuthUI.isOpen()) PliegoAuthUI.show("expired");
 });
-if (!PliegoCloud.configured) PliegoAuthUI.show("config");
+if (PliegoCloud.demo) PliegoAuthUI.show("login");
+else if (!PliegoCloud.configured) PliegoAuthUI.show("config");
 else boot();
